@@ -6,7 +6,7 @@
 Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited seed variance** — changing the seed produces only subtle variations or nearly identical outputs. The **RBG Smart Seed Variance** node solves this by intelligently injecting controlled noise into text embeddings during generation, creating meaningful diversity while preserving your prompt intention.
 
 ---
-https://github.com/RamonGuthrie/ComfyUI-RBG-SmartSeedVariance/blob/main/doc/Screenshot%202025-12-09%20135824.png
+
 ## Feature List 🚀
 
 -   **7 Intelligent Presets:** Pre-configured variance levels from Subtle to Wild:
