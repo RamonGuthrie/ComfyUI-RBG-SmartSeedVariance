@@ -7,7 +7,7 @@
 Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited seed variance** — changing the seed produces only subtle variations or nearly identical outputs. The **RBG Smart Seed Variance** node solves this by intelligently injecting controlled noise into text embeddings during generation, creating meaningful diversity while preserving your prompt intention.
 
 ---
-![alt text](<Screenshot 2025-12-09 140138.png>)
+<img width="3614" height="1600" alt="Screenshot 2025-12-09 140138" src="https://github.com/user-attachments/assets/272a0bb6-d94e-400b-9be0-40df36dc7941" />
 
 ## Feature List 🚀
 
@@ -30,8 +30,10 @@ Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
 
 ---
-![alt text](<Screenshot 2025-12-09 143429.png>)
-![alt text](<Screenshot 2025-12-09 151729.png>)
+<img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
+
+<img width="3612" height="1508" alt="Screenshot 2025-12-09 151729" src="https://github.com/user-attachments/assets/7c2d5b50-2d75-4d79-ab0d-802a62cb4e26" />
+
 ## 📥 Installation
 
 1.  Clone this repository into your `ComfyUI/custom_nodes` directory:
@@ -60,7 +62,8 @@ The node will appear under the **RBG Suite/Advanced** category.
 - **Chain more then one:** For advanced effects, you can chain multiple Smart Seed Variance nodes.
 
 ## Watch the Demo video 📺
-<video controls src="Untitled video - Made with Clipchamp (1)_1.mp4" title="Title"></video>
+
+https://github.com/user-attachments/assets/e33b7139-8979-44f1-ae70-dd46d9b1a91e
 
 ---
 
