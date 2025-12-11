@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comfyui-rbg-smartseedvariance"
+version = "1.0.0"
+description = "Advanced seed diversity enhancement for ComfyUI with intelligent noise injection and directional biasing."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+  { name = "Ramon Guthrie"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+
+dependencies = [
+    "numpy",
+    "Pillow",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/RamonGuthrie/ComfyUI-RBG-SmartSeedVariance"
+"Bug Tracker" = "https://github.com/RamonGuthrie/ComfyUI-RBG-SmartSeedVariance/issues"
