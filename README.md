@@ -56,10 +56,11 @@ The node will appear under the **RBG Suite/Advanced** category.
 - **Experiment with directions:** Each artistic direction creates unique aesthetic shifts - try them all!
 - **Protect your keywords:** Use "First Half" protection if important prompt concepts are being overridden
 - **Track your seed:** Use consistent seeds to compare variance effects side-by-side
-- **Model matters:** Always select the correct model type for optimal results and avoiding over-correction
+- **Model matters:** Always select the correct model type for optimal results and to avoid over-correction
 - **Combine strategies:** Mix direction shifts with fade curves and noise injection timing for sophisticated effects
 - **Use custom mode:** Fine-tune with the slider when presets don't match your needs exactly
-- **Chain more then one:** For advanced effects, you can chain multiple Smart Seed Variance nodes.
+- **Chain more than one:** For advanced effects, you can chain multiple Smart Seed Variance nodes.
+- **Share settings with the Community:** If you find a killer setting combination Export them and share with the open-source community.
 
 ## Watch the Demo video 📺
 
