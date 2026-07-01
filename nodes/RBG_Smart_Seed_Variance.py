@@ -5,6 +5,13 @@ A user-friendly ComfyUI node for enhancing seed diversity in Z-Image Turbo and Q
 
 import torch
 import random
+import math
+
+try:
+    import node_helpers
+    _NODE_HELPERS_AVAILABLE = True
+except ImportError:
+    _NODE_HELPERS_AVAILABLE = False
 
 
 class RBG_Smart_Seed_Variance:
@@ -27,9 +34,11 @@ class RBG_Smart_Seed_Variance:
     # Model-specific adjustments: (strength_multiplier, randomize_multiplier)
     MODEL_ADJUSTMENTS = {
         "⚡ Z-Image Turbo": (1.0, 1.0),      # Baseline - well tested with strength 15-30
+        "📸 Krea2 (SingleStream)": (1.0, 0.95), # Custom preset added for Krea2 models
         "🖼️ Qwen-Image": (1.0, 0.9),         # Similar architecture to Z-Image
         "🔮 Flux (Dev/Schnell)": (0.5, 0.8), # Dual encoder (CLIP + T5) - more sensitive
         "🎨 Chroma HD": (0.05, 0.5),         # Very sensitive - needs strength < 1
+        "🧧 ERNIE-Image": (0.08, 0.45),      # Very sensitive - collapses past Creative. Trained on Baidu corpus.
         "🖌️ SDXL": (0.6, 0.8),               # Dual CLIP encoder - moderate sensitivity
         "🎬 Wan2.2": (0.8, 0.8),             # Video model - conservative
         "⚙️ Other": (0.8, 0.8),              # Conservative default
@@ -54,9 +63,6 @@ class RBG_Smart_Seed_Variance:
     ]
     
     # Embedding Direction Shift options
-    # Each direction applies a structured bias pattern to the embeddings
-    # Format: (dimension_bias_pattern, strength_multiplier)
-    # dimension_bias_pattern: "positive", "negative", "alternating", "wave", etc.
     DIRECTION_SHIFTS = {
         "🚫 None": None,                    # Pure random noise (default behavior)
         "🌀 Chaos": ("scatter", 1.2),       # Increase entropy/randomness
@@ -66,15 +72,24 @@ class RBG_Smart_Seed_Variance:
         "🌈 Vibrant": ("positive", 1.1),    # More colorful/saturated direction
         "🌑 Moody": ("negative", 1.0),      # Darker, moodier direction
         "💭 Dreamy": ("smooth", 1.1),       # Soft, ethereal direction
-        "🎭 Dynamic Pose": ("spatial", 1.2),  # Varied poses/actions
+        "🎭 Dynamic Pose": ("spatial", 1.2),  # Varied poses/actions. Block-based noise.
         "🖼️ Composition": ("gradient", 1.0),  # Different layouts/framing
         "🌎 Diversity": ("diversity", 1.15),  # Simple uniform noise
         "🧬 Face-Variance Expansion": ("facevar", 1.25),  # Advanced curvature noise
+        "🗿 Visceral Expression & Grit (Krea2)": ("visceral_grit", 1.2), # Custom engineered Krea2 emotional & texture lift
         "🧭 Semantic Drift (Centroid-Safe)": ("semantic_drift", 1.0), # Small constant shift
         "🧱 Structural Lock": ("structural_lock", 1.0), # Decaying noise structure
         "🎞️ Cinematic Framing": ("cinematic_framing", 1.1), # Gradient + center bias
-        "🧠 Identity Stretch": ("identity_stretch", 1.25), # Mid-range curvature
-        "🪶 Texture Lift": ("texture_lift", 1.0), # High-freq residual only
+        "🪶 Texture Lift": ("texture_lift", 1.0), # Mid-range curvature
+        "💡 Studio Portrait": ("spatial", 1.0), # Early-mid structural balance
+        "🌸 Natural": ("pink", 1.0), # 1/f noise (Pink Noise)
+        "🏞️ Landscape Depth": ("landscape_depth", 1.1), # Depth-based gradient
+        "👥 Group Diversity": ("group_diversity", 1.25), # Multi-modal noise
+        "🎭 Expression Variance": ("expression", 1.2), # Facial expression focus
+        "🌊 Motion Blur": ("motion_blur", 1.1), # Directional streak patterns
+        "🔬 Microscopic": ("microscopic", 1.3), # Ultra-high-freq detail
+        "🌌 Cosmic": ("cosmic", 1.2), # Fractal-based noise
+        "☠️ Bone Anatomical Coherence": ("anatomical_coherence", 0.6), # Low-frequency smoothing
     }
     
     # Fade curves for noise application
@@ -87,7 +102,7 @@ class RBG_Smart_Seed_Variance:
         "Smooth Step",  # Cubic smooth (Ken Perlin style)
         "Burst",        # Aggressive initial noise, quick drop
     ]
-    
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -117,9 +132,14 @@ class RBG_Smart_Seed_Variance:
                     "default": "Beginning Steps",
                     "tooltip": "When to apply noise during generation. Beginning Steps = more composition variety, Ending Steps = more detail variety."
                 }),
-                "protect_prompt": (list(cls.PROTECT_OPTIONS.keys()), {
+                "protect_mode": (["🚫 None", "First Quarter", "First Half", "Last Quarter", "Last Half", "⚙️ Custom Regions", "🎲 Random Regions"], {
                     "default": "🚫 None",
-                    "tooltip": "Protect portions of your prompt from noise modification."
+                    "tooltip": "Protection mode: use preset regions, define custom token ranges, or protect random tokens."
+                }),
+                "protect_regions": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Custom protection regions (e.g., '0-5,15-20'). Only used when mode is 'Custom Regions'. Format: single tokens (5) or ranges (0-5), comma-separated."
                 }),
                 "direction_shift": (list(cls.DIRECTION_SHIFTS.keys()), {
                     "default": "🚫 None",
@@ -133,9 +153,9 @@ class RBG_Smart_Seed_Variance:
                     "display": "slider",
                     "tooltip": "Strength of the direction shift effect (0-200%). 100% = default, 0% = disabled, 200% = double strength."
                 }),
-                "variance_schedule": (["constant", "decreasing", "step_cutoff"], {
+                "variance_schedule": (["constant", "decreasing", "step_cutoff", "hard_lock", "tiered_release"], {
                     "default": "constant",
-                    "tooltip": "Composition Lock 🔒: Control how variance changes over time. 'constant' uses standard behavior, 'decreasing' fades noise out, 'step_cutoff' drops noise at a specific step."
+                    "tooltip": "Composition Lock 🔒: Control how variance changes over time. 'constant'=standard, 'decreasing'=fade out, 'step_cutoff'=block switch, 'hard_lock'=zero variance until step, 'tiered_release'=multi-phase unlock."
                 }),
                 "cutoff_step": ("INT", {
                     "default": 8,
@@ -163,30 +183,60 @@ class RBG_Smart_Seed_Variance:
                     "max": 0xffffffffffffffff,
                     "tooltip": "Seed for noise generation. Different seeds = different variance patterns."
                 }),
+            },
+            "optional": {
+                "target_vibe": ("CONDITIONING", {
+                    "tooltip": (
+                        "Optional: Connect a conditioning to steer variance direction.\n"
+                        "The node computes a normalised per-token direction vector from source → target, "
+                        "then blends it with your chosen direction_shift pattern.\n"
+                        "Both work together — the vibe sets the direction, the pattern adds texture.\n"
+                        "Multi-chunk targets are matched chunk-for-chunk with the source.\n"
+                        "Use vibe_blend to control how strongly the target steers the output."
+                    )
+                }),
+                "vibe_blend": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.05,
+                    "display": "slider",
+                    "tooltip": (
+                        "Controls the mix between target_vibe direction and your direction_shift pattern.\n"
+                        "0.0 — direction_shift pattern only, target_vibe has no influence\n"
+                        "0.5 — equal blend of vibe direction and pattern (default)\n"
+                        "1.0 — pure vibe steering, direction_shift pattern silent\n"
+                        "Has no effect when target_vibe is not connected."
+                    )
+                }),
             }
         }
     
-    RETURN_TYPES = ("CONDITIONING",)
-    RETURN_NAMES = ("conditioning",)
+    RETURN_TYPES = ("CONDITIONING", "IMAGE")
+    RETURN_NAMES = ("conditioning", "variance_heatmap")
     FUNCTION = "apply_variance"
     CATEGORY = "RBG Suite/Advanced"
-    
+
     def apply_variance(self, conditioning, variance_preset, fine_tune_variance, model_type, fade_curve,
-                       noise_injection, protect_prompt, direction_shift, shift_strength, seed,
-                       variance_schedule="constant", cutoff_step=8, total_steps=20, cutoff_strength=0.0):
+                       noise_injection, protect_mode, protect_regions, direction_shift, shift_strength, seed,
+                       variance_schedule="constant", cutoff_step=8, total_steps=20, cutoff_strength=0.0,
+                       target_vibe=None, vibe_blend=0.5):
         """
         Apply variance noise to conditioning embeddings with step-based control.
         """
-        import node_helpers
-        
+        if not _NODE_HELPERS_AVAILABLE:
+            raise RuntimeError(
+                "RBG Smart Seed Variance: 'node_helpers' could not be imported. "
+                "This module ships with ComfyUI — check your installation."
+            )
+
         # Handle disabled mode
         if variance_preset == "❌ Disabled":
-            return (conditioning,)
+            return {"ui": {"protection_data": []}, "result": (conditioning, torch.zeros((1, 64, 64, 3)))}
         
         # Get preset values or calculate from fine_tune_variance
         preset_config = self.PRESETS.get(variance_preset)
         if preset_config is None:
-            # Custom mode: map fine_tune_variance (0-100) to reasonable ranges
             randomize_percent = (fine_tune_variance / 100.0) * 5.0  # 0-5%
             strength = (fine_tune_variance / 100.0) * 50.0  # 0-50
         else:
@@ -197,23 +247,19 @@ class RBG_Smart_Seed_Variance:
         randomize_percent *= randomize_mult
         strength *= strength_mult
         
-        # Get protection mask config (fraction, position)
-        protect_config = self.PROTECT_OPTIONS.get(protect_prompt, (0.0, "start"))
-        protect_fraction, protect_position = protect_config
-        
         # Get direction shift config and apply user strength
         direction_config = self.DIRECTION_SHIFTS.get(direction_shift, None)
         if direction_config is not None:
             pattern, preset_mult = direction_config
-            # Apply user's direction strength (0-200 maps to 0.0-2.0 multiplier)
             user_mult = shift_strength / 100.0
             direction_config = (pattern, preset_mult * user_mult)
-        
+
         # Create noisy conditioning
         noisy_conditioning = []
+        protection_masks_for_ui = []
+        heatmap_tensor = torch.zeros((1, 64, 64, 3))
         
         for i, cond in enumerate(conditioning):
-            # Each conditioning is a tuple: (tensor, dict)
             if len(cond) < 2:
                 noisy_conditioning.append(cond)
                 continue
@@ -221,94 +267,178 @@ class RBG_Smart_Seed_Variance:
             cond_tensor = cond[0]
             cond_dict = cond[1].copy() if len(cond) > 1 else {}
             
-            # Apply noise to the embedding tensor with fade curve
+            # Determine number of tokens from tensor shape
+            if len(cond_tensor.shape) == 3:
+                num_tokens = cond_tensor.shape[1]
+            elif len(cond_tensor.shape) == 2:
+                num_tokens = cond_tensor.shape[0]
+            else:
+                noisy_conditioning.append(cond)
+                continue
+            
+            # Generate protection mask based on mode
+            if protect_mode == "⚙️ Custom Regions":
+                protection_mask = self._parse_protection_regions(protect_regions, num_tokens)
+            elif protect_mode == "🎲 Random Regions":
+                protection_mask = self._generate_random_protection_mask(seed + i, num_tokens, cond_tensor.device)
+            else:
+                protection_mask = self._legacy_protection_to_mask(protect_mode, num_tokens)
+            
+            # Match target chunk
+            current_target = self._pick_target_chunk(target_vibe, i, cond_tensor)
+
+            pattern = direction_config[0] if direction_config is not None else "random"
+
+            # Tweak 4: Apply base conditioning layer rebalancing to boost expression signals in base prompt
+            rebalanced_cond_tensor = self._apply_base_rebalance(cond_tensor, pattern, model_type)
+
+            # Apply noise with rebalanced tensor
             modified_tensor = self._apply_noise(
-                cond_tensor, 
-                randomize_percent, 
-                strength, 
-                protect_fraction,
-                protect_position,
+                rebalanced_cond_tensor,
+                randomize_percent,
+                strength,
+                protection_mask,
                 direction_config,
+                current_target,
                 fade_curve,
-                seed + i  # Offset seed for each conditioning
+                seed + i,
+                vibe_blend,
+                model_type=model_type,
             )
             
-            # Store metadata
+            # Generate Heatmap for first conditioning chunk
+            if i == 0:
+                diff = (modified_tensor - cond_tensor).norm(dim=-1)
+                max_diff = diff.max()
+                if max_diff > 0: diff = diff / max_diff
+                
+                viz_width = diff.shape[1]
+                heatmap_row = diff.view(1, 1, viz_width, 1).expand(1, 64, viz_width, 3)
+                heatmap_tensor = torch.nn.functional.interpolate(heatmap_row.permute(0, 3, 1, 2), size=(64, 512), mode='nearest').permute(0, 2, 3, 1)
+            
+            # Store protection mask for UI
+            if hasattr(protection_mask, 'tolist'):
+                mask_list = (protection_mask.cpu().numpy().tolist()
+                             if protection_mask.device.type != 'cpu'
+                             else protection_mask.tolist())
+                if mask_list and isinstance(mask_list[0], list):
+                    mask_list = [item for sublist in mask_list for item in sublist]
+            else:
+                mask_list = []
+
+            # Serialisable metadata
             cond_dict["rbg_variance_fade_curve"] = fade_curve
             cond_dict["rbg_variance_applied"] = True
             cond_dict["rbg_direction_shift"] = direction_shift
             cond_dict["rbg_noise_injection"] = noise_injection
-            
+            cond_dict["rbg_protect_mode"] = protect_mode
+            if protect_mode == "⚙️ Custom Regions":
+                cond_dict["rbg_protect_regions"] = protect_regions
+
+            protection_masks_for_ui.append(mask_list)
             noisy_conditioning.append((modified_tensor, cond_dict))
         
         # --- Composition Lock Logic ---
         if variance_schedule != "constant":
-            # Override noise_injection with the schedule
             cutoff_percent = min(1.0, max(0.0, cutoff_step / total_steps))
             
             if variance_schedule == "step_cutoff":
-                # Block 1: Full Noise
                 new_conditioning = node_helpers.conditioning_set_values(
                     noisy_conditioning, {"start_percent": 0.0, "end_percent": cutoff_percent}
                 )
-                
-                # Block 2: Scaled Noise (Cutoff Strength)
                 if cutoff_strength > 0:
-                    # Create a second noisy conditioning with reduced strength
                     scaled_noisy = self._create_scaled_conditioning(
-                        conditioning, randomize_percent, strength * cutoff_strength, 
-                        protect_fraction, protect_position, direction_config, fade_curve, seed
+                        conditioning, randomize_percent, strength * cutoff_strength, target_vibe,
+                        protect_mode, protect_regions, direction_config, fade_curve, seed, vibe_blend, model_type=model_type
                     )
                     new_conditioning += node_helpers.conditioning_set_values(
                         scaled_noisy, {"start_percent": cutoff_percent, "end_percent": 1.0}
                     )
                 else:
-                    # 0 strength = original conditioning
                     new_conditioning += node_helpers.conditioning_set_values(
                         conditioning, {"start_percent": cutoff_percent, "end_percent": 1.0}
                     )
-                return (new_conditioning,)
+                return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
                 
             elif variance_schedule == "decreasing":
-                # Linear decrease to cutoff_percent, then fixed at cutoff_strength
                 num_segments = 5
                 new_conditioning = []
                 
                 for i in range(num_segments):
                     seg_start = (i / num_segments) * cutoff_percent
                     seg_end = ((i + 1) / num_segments) * cutoff_percent
-                    
-                    # Multiplier fades from 1.0 down to cutoff_strength over the cutoff_step
                     seg_multiplier = 1.0 - (i / num_segments) * (1.0 - cutoff_strength)
                     
                     seg_noisy = self._create_scaled_conditioning(
-                        conditioning, randomize_percent, strength * seg_multiplier,
-                        protect_fraction, protect_position, direction_config, fade_curve, seed
+                        conditioning, randomize_percent, strength * seg_multiplier, target_vibe,
+                        protect_mode, protect_regions, direction_config, fade_curve, seed, vibe_blend, model_type=model_type
                     )
                     new_conditioning += node_helpers.conditioning_set_values(
                         seg_noisy, {"start_percent": seg_start, "end_percent": seg_end}
                     )
                 
-                # Final segment after cutoff
                 if cutoff_percent < 1.0:
                     final_noisy = self._create_scaled_conditioning(
-                        conditioning, randomize_percent, strength * cutoff_strength,
-                        protect_fraction, protect_position, direction_config, fade_curve, seed
+                        conditioning, randomize_percent, strength * cutoff_strength, target_vibe,
+                        protect_mode, protect_regions, direction_config, fade_curve, seed, vibe_blend, model_type=model_type
                     )
                     new_conditioning += node_helpers.conditioning_set_values(
                         final_noisy, {"start_percent": cutoff_percent, "end_percent": 1.0}
                     )
-                return (new_conditioning,)
+                return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
+            
+            elif variance_schedule == "hard_lock":
+                new_conditioning = node_helpers.conditioning_set_values(
+                    conditioning, {"start_percent": 0.0, "end_percent": cutoff_percent}
+                )
+                if cutoff_strength > 0:
+                    scaled_noisy = self._create_scaled_conditioning(
+                        conditioning, randomize_percent, strength * cutoff_strength, target_vibe,
+                        protect_mode, protect_regions, direction_config, fade_curve, seed, vibe_blend, model_type=model_type
+                    )
+                    new_conditioning += node_helpers.conditioning_set_values(
+                        scaled_noisy, {"start_percent": cutoff_percent, "end_percent": 1.0}
+                    )
+                else:
+                    new_conditioning += node_helpers.conditioning_set_values(
+                        conditioning, {"start_percent": cutoff_percent, "end_percent": 1.0}
+                    )
+                return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
+
+            elif variance_schedule == "tiered_release":
+                remaining  = 1.0 - cutoff_percent
+                phase2_end = cutoff_percent + remaining * 0.25
+
+                phase1_noisy = self._create_scaled_conditioning(
+                    conditioning, randomize_percent * max(cutoff_strength, 0.1),
+                    strength * cutoff_strength, target_vibe,
+                    protect_mode, protect_regions, direction_config, fade_curve, seed, vibe_blend, model_type=model_type
+                )
+                new_conditioning = node_helpers.conditioning_set_values(
+                    phase1_noisy, {"start_percent": 0.0, "end_percent": cutoff_percent}
+                )
+
+                phase2_noisy = self._create_scaled_conditioning(
+                    conditioning, randomize_percent * 0.7, strength * 0.6, target_vibe,
+                    protect_mode, protect_regions, direction_config, fade_curve, seed + 1, vibe_blend, model_type=model_type
+                )
+                new_conditioning += node_helpers.conditioning_set_values(
+                    phase2_noisy, {"start_percent": cutoff_percent, "end_percent": phase2_end}
+                )
+
+                if phase2_end < 1.0:
+                    new_conditioning += node_helpers.conditioning_set_values(
+                        noisy_conditioning, {"start_percent": phase2_end, "end_percent": 1.0}
+                    )
+                return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
 
         # --- Standard Noise Injection Logic ---
         if noise_injection == "🚫 None" or noise_injection == "All Steps":
-            # Simple: just return the noisy conditioning
-            return (noisy_conditioning,)
+            return {"ui": {"protection_data": protection_masks_for_ui}, "result": (noisy_conditioning, heatmap_tensor)}
         
         switchover = 0.20
         
         if noise_injection == "Beginning Steps":
-            # Noisy embedding for first 20%, original for rest
             new_conditioning = node_helpers.conditioning_set_values(
                 noisy_conditioning, {"start_percent": 0.0, "end_percent": switchover}
             )
@@ -316,7 +446,6 @@ class RBG_Smart_Seed_Variance:
                 conditioning, {"start_percent": switchover, "end_percent": 1.0}
             )
         elif noise_injection == "Ending Steps":
-            # Original for first 80%, noisy for last 20%
             new_conditioning = node_helpers.conditioning_set_values(
                 conditioning, {"start_percent": 0.0, "end_percent": switchover}
             )
@@ -324,463 +453,543 @@ class RBG_Smart_Seed_Variance:
                 noisy_conditioning, {"start_percent": switchover, "end_percent": 1.0}
             )
         else:
-            # Fallback
             new_conditioning = noisy_conditioning
         
-        return (new_conditioning,)
+        return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
 
-    def _create_scaled_conditioning(self, conditioning, randomize_percent, strength, protect_fraction, protect_position, direction_config, fade_curve, seed):
-        """Helper to create conditioning with a specific noise strength."""
+    def _create_scaled_conditioning(self, conditioning, randomize_percent, strength,
+                                    target_vibe, protect_mode, protect_regions,
+                                    direction_config, fade_curve, seed, vibe_blend=0.5, model_type="⚙️ Other"):
         scaled_conditioning = []
         for i, cond in enumerate(conditioning):
             if len(cond) < 2:
                 scaled_conditioning.append(cond)
                 continue
             cond_tensor = cond[0]
-            cond_dict = cond[1].copy()
+            cond_dict   = cond[1].copy()
+
+            if len(cond_tensor.shape) == 3:
+                num_tokens = cond_tensor.shape[1]
+            elif len(cond_tensor.shape) == 2:
+                num_tokens = cond_tensor.shape[0]
+            else:
+                scaled_conditioning.append(cond)
+                continue
+
+            if protect_mode == "⚙️ Custom Regions":
+                protection_mask = self._parse_protection_regions(protect_regions, num_tokens)
+            elif protect_mode == "🎲 Random Regions":
+                protection_mask = self._generate_random_protection_mask(seed + i, num_tokens, cond_tensor.device)
+            else:
+                protection_mask = self._legacy_protection_to_mask(protect_mode, num_tokens)
+
+            current_target = self._pick_target_chunk(target_vibe, i, cond_tensor)
+
+            pattern = direction_config[0] if direction_config is not None else "random"
+
+            # Tweak 4: Apply base conditioning layer rebalancing
+            rebalanced_cond_tensor = self._apply_base_rebalance(cond_tensor, pattern, model_type)
+
             modified_tensor = self._apply_noise(
-                cond_tensor, randomize_percent, strength, protect_fraction, protect_position, direction_config, fade_curve, seed + i
+                rebalanced_cond_tensor, randomize_percent, strength, protection_mask,
+                direction_config, current_target, fade_curve, seed + i, vibe_blend, model_type=model_type
             )
             scaled_conditioning.append((modified_tensor, cond_dict))
         return scaled_conditioning
     
-    def _apply_noise(self, tensor, randomize_percent, strength, protect_fraction, protect_position, direction_config, fade_curve, seed):
+    def _parse_protection_regions(self, region_string, num_tokens):
+        if not region_string or region_string.lower() == "none":
+            return torch.zeros(num_tokens, dtype=torch.bool)
+        protected_mask = torch.zeros(num_tokens, dtype=torch.bool)
+        try:
+            regions = region_string.replace(" ", "").split(",")
+            for region in regions:
+                if not region:
+                    continue
+                if "-" in region:
+                    parts = region.split("-")
+                    if len(parts) != 2:
+                        continue
+                    start_idx = int(parts[0])
+                    end_idx = int(parts[1])
+                    if start_idx < 0 or end_idx >= num_tokens or start_idx > end_idx:
+                        continue
+                    protected_mask[start_idx:end_idx+1] = True
+                else:
+                    idx = int(region)
+                    if 0 <= idx < num_tokens:
+                        protected_mask[idx] = True
+        except Exception:
+            return torch.zeros(num_tokens, dtype=torch.bool)
+        return protected_mask
+    
+    def _generate_random_protection_mask(self, seed, num_tokens, device):
+        generator = torch.Generator(device=device)
+        generator.manual_seed((seed ^ 0x5EED) & 0xFFFFFFFFFFFFFFFF)
+        num_to_protect = int(num_tokens * 0.3)
+        if num_to_protect <= 0 and num_tokens > 0:
+            num_to_protect = 1
+        protected_indices = torch.randperm(num_tokens, generator=generator, device=device)[:num_to_protect]
+        mask = torch.zeros(num_tokens, dtype=torch.bool, device=device)
+        mask[protected_indices] = True
+        return mask
+    
+    def _legacy_protection_to_mask(self, protect_mode, num_tokens):
+        protect_config = self.PROTECT_OPTIONS.get(protect_mode, (0.0, "start"))
+        protect_fraction, protect_position = protect_config
+        protected_count = int(num_tokens * protect_fraction)
+        protected_mask = torch.zeros(num_tokens, dtype=torch.bool)
+        if protected_count > 0:
+            if protect_position == "end":
+                protected_mask[num_tokens - protected_count:] = True
+            else:
+                protected_mask[:protected_count] = True
+        return protected_mask
+
+    def _pick_target_chunk(self, target_vibe, source_chunk_index, source_tensor):
+        if not target_vibe or len(target_vibe) == 0:
+            return None
+        chunk_index = min(source_chunk_index, len(target_vibe) - 1)
+        target_tensor = target_vibe[chunk_index][0]
+        src_embed = source_tensor.shape[-1]
+        tgt_embed = target_tensor.shape[-1]
+        if src_embed != tgt_embed:
+            return None
+        return target_tensor
+
+    def _prepare_vibe_tensor(self, target_tensor, source_tensor):
+        device = source_tensor.device
+        dtype  = source_tensor.dtype
+        tgt = target_tensor.to(device=device, dtype=torch.float32)
+        src = source_tensor.to(dtype=torch.float32)
+        squeezed = False
+        if tgt.dim() == 2:
+            tgt = tgt.unsqueeze(0)
+        if src.dim() == 2:
+            src      = src.unsqueeze(0)
+            squeezed = True
+        batch_size, src_tokens, embed_dim = src.shape
+        if tgt.shape[0] != batch_size:
+            tgt = tgt.expand(batch_size, -1, -1)
+        tgt_tokens = tgt.shape[1]
+        if tgt_tokens != src_tokens:
+            tgt = tgt.permute(0, 2, 1)
+            tgt = torch.nn.functional.interpolate(tgt, size=src_tokens, mode="linear", align_corners=False)
+            tgt = tgt.permute(0, 2, 1)
+        if squeezed:
+            tgt = tgt.squeeze(0)
+        return tgt.to(dtype=dtype)
+
+    def _apply_base_rebalance(self, cond_tensor, pattern, model_type):
+        if model_type != "📸 Krea2 (SingleStream)":
+            return cond_tensor
+            
+        embed_dim = cond_tensor.shape[-1]
+        if embed_dim % 12 != 0:
+            return cond_tensor
+            
+        # Determine base multipliers for Krea2 to boost expressions/textures
+        if pattern == "visceral_grit":
+            # Composition (1-3) neutral; Emotion (4-7) heavily boosted; Detail/Grit (8-12) heavily boosted
+            base_multipliers = [1.0, 1.0, 1.0, 2.2, 2.5, 2.5, 2.2, 1.8, 2.8, 2.5, 3.2, 1.8]
+        elif pattern == "expression":
+            # Boost facial expression / emotional layers
+            base_multipliers = [1.0, 1.0, 1.0, 2.5, 2.8, 2.8, 2.2, 1.0, 1.0, 1.0, 1.0, 1.0]
+        else:
+            return cond_tensor
+            
+        band_width = embed_dim // 12
+        band_tensor = torch.tensor(base_multipliers, dtype=cond_tensor.dtype, device=cond_tensor.device)
+        band_tensor = band_tensor.repeat_interleave(band_width) # [embed_dim]
+        
+        return cond_tensor * band_tensor
+
+    def _apply_noise(self, tensor, randomize_percent, strength, protection_mask,
+                     direction_config, target_tensor, fade_curve, seed, vibe_blend=0.5, model_type="⚙️ Other"):
         """
         Apply noise to a fraction of the tensor values, optionally with directional bias and fade curve.
-        
-        Args:
-            tensor: The embedding tensor to modify
-            randomize_percent: Percentage of values to modify (0-100)
-            strength: Scale of the noise to add
-            protect_fraction: Fraction of tokens to protect (0-1)
-            protect_position: "start" or "end" - which part of prompt to protect
-            direction_config: Tuple of (pattern, multiplier) or None for random noise
-            fade_curve: Type of fade curve to apply spatially across embedding
-            seed: Random seed for reproducibility
-        
-        Returns:
-            Modified tensor with noise applied
         """
-        # Clone tensor to avoid modifying original
         modified = tensor.clone()
-        
-        # Set random seed for reproducibility
         generator = torch.Generator(device=tensor.device)
         generator.manual_seed(seed)
         
-        # Extract direction pattern and multiplier
         if direction_config is not None:
             pattern, dir_multiplier = direction_config
             strength *= dir_multiplier
         else:
             pattern = "random"
         
-        # Calculate dimensions
         if len(modified.shape) == 3:
-            # Shape: (batch, tokens, embedding_dim)
             batch_size, num_tokens, embed_dim = modified.shape
+            if protection_mask.shape[0] != num_tokens:
+                protection_mask = torch.zeros(num_tokens, dtype=torch.bool, device=tensor.device)
             
-            # Calculate protected token count based on position
-            protected_count = int(num_tokens * protect_fraction)
+            protection_mask = protection_mask.to(tensor.device)
+            modifiable_mask = ~protection_mask
             
-            if protect_position == "end":
-                # Protect from end: modify tokens from 0 to (num_tokens - protected_count)
-                start_idx = 0
-                end_idx = num_tokens - protected_count
-            else:
-                # Protect from start: modify tokens from protected_count to end
-                start_idx = protected_count
-                end_idx = num_tokens
-            
-            # Only modify if there are unprotected tokens
-            if start_idx < end_idx:
-                # Clone the slice to avoid memory aliasing issues
-                unprotected = modified[:, start_idx:end_idx, :].clone()
-                
-                # Calculate number of values to modify
-                total_values = unprotected.numel()
+            if modifiable_mask.any():
+                batch_mask = modifiable_mask.unsqueeze(0).unsqueeze(-1).expand(batch_size, num_tokens, embed_dim)
+                modifiable_values = modified[batch_mask]
+                total_values = modifiable_values.numel()
                 num_to_modify = int(total_values * (randomize_percent / 100.0))
                 
                 if num_to_modify > 0:
-                    # Generate noise based on pattern
-                    noise = self._generate_directional_noise(
-                        num_to_modify, pattern, strength, generator, tensor.device
-                    )
-                    
-                    # Generate spatial fade envelope (across tokens)
-                    token_count = unprotected.shape[1]
-                    token_envelope = self._generate_fade_envelope(token_count, fade_curve, tensor.device)
-                    
-                    # Broadcast: (1, Tokens, 1) -> (Batch, Tokens, Dim)
-                    # This ensures the fade is applied structurally across the sequence
-                    token_envelope = token_envelope.view(1, token_count, 1)
-                    full_envelope = token_envelope.expand(unprotected.shape).contiguous().flatten()
-                    
-                    # Generate random indices to modify
-                    flat_unprotected = unprotected.flatten()
-                    indices = torch.randperm(total_values, generator=generator)[:num_to_modify]
-                    
-                    # Apply spatial fade modifiers to the noise based on where it lands
-                    spatial_modifiers = full_envelope[indices]
-                    noise = noise * spatial_modifiers
-                    
-                    # Apply noise to selected indices
-                    flat_unprotected[indices] += noise
-                    
-                    # Reshape and assign back
-                    modified[:, start_idx:end_idx, :] = flat_unprotected.reshape(unprotected.shape)
-        
+                    if target_tensor is not None:
+                        tgt = self._prepare_vibe_tensor(target_tensor, modified)
+                        target_values = tgt[batch_mask]
+
+                        raw_dir = target_values - modifiable_values
+                        num_mod_tokens = modifiable_mask.sum().item()
+                        raw_dir_2d = raw_dir.view(num_mod_tokens * batch_size, embed_dim)
+                        norms = raw_dir_2d.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+                        unit_dir = (raw_dir_2d / norms).view(-1)
+                        vibe_noise = unit_dir * strength * vibe_blend
+
+                        pattern_weight = 1.0 - vibe_blend
+                        if pattern_weight > 0 and (pattern != "random" or direction_config is not None):
+                            pattern_noise = self._generate_directional_noise(
+                                vibe_noise.shape[0], pattern, strength * pattern_weight,
+                                generator, tensor.device
+                            )
+                            noise = vibe_noise + pattern_noise
+                        else:
+                            noise = vibe_noise
+
+                        # Tweak 2: Krea 2 Band-Aware Noise scaling (3D target vibe path)
+                        if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
+                            band_width = embed_dim // 12
+                            if pattern == "spatial":
+                                band_multipliers = [1.5, 1.5, 1.3, 1.2, 1.0, 0.8, 0.5, 0.3, 0.2, 0.1, 0.1, 0.1]
+                            elif pattern == "texture_lift":
+                                band_multipliers = [0.1, 0.1, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.5, 1.5]
+                            elif pattern == "visceral_grit":
+                                band_multipliers = [0.0, 0.0, 0.1, 1.3, 1.5, 1.5, 1.2, 1.1, 1.5, 1.5, 1.5, 1.5]
+                            else:
+                                band_multipliers = [1.0] * 12
+                            band_tensor = torch.tensor(band_multipliers, dtype=tensor.dtype, device=tensor.device)
+                            band_tensor = band_tensor.repeat_interleave(band_width)
+                            band_scale = band_tensor.repeat(num_mod_tokens * batch_size)
+                            noise = noise * band_scale
+
+                        token_envelope = self._generate_fade_envelope(num_mod_tokens, fade_curve, tensor.device)
+                        full_envelope = token_envelope.repeat_interleave(embed_dim).repeat(batch_size)
+                        noise = noise * full_envelope
+
+                        modifiable_values += noise
+                        modified[batch_mask] = modifiable_values
+
+                    else:
+                        noise = self._generate_directional_noise(
+                            num_to_modify, pattern, strength, generator, tensor.device
+                        )
+                        num_modifiable_tokens = modifiable_mask.sum().item()
+                        token_envelope  = self._generate_fade_envelope(num_modifiable_tokens, fade_curve, tensor.device)
+                        full_envelope   = token_envelope.repeat_interleave(embed_dim).repeat(batch_size)
+                        indices         = torch.randperm(total_values, generator=generator, device=tensor.device)[:num_to_modify]
+                        
+                        # Tweak 2: Krea 2 Band-Aware Noise scaling (3D random path)
+                        if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
+                            band_width = embed_dim // 12
+                            if pattern == "spatial":
+                                band_multipliers = [1.5, 1.5, 1.3, 1.2, 1.0, 0.8, 0.5, 0.3, 0.2, 0.1, 0.1, 0.1]
+                            elif pattern == "texture_lift":
+                                band_multipliers = [0.1, 0.1, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.5, 1.5]
+                            elif pattern == "visceral_grit":
+                                band_multipliers = [0.0, 0.0, 0.1, 1.3, 1.5, 1.5, 1.2, 1.1, 1.5, 1.5, 1.5, 1.5]
+                            else:
+                                band_multipliers = [1.0] * 12
+                            band_tensor = torch.tensor(band_multipliers, dtype=tensor.dtype, device=tensor.device)
+                            band_tensor = band_tensor.repeat_interleave(band_width)
+                            
+                            feature_indices = indices % embed_dim
+                            band_scale = band_tensor[feature_indices]
+                            noise = noise * band_scale
+
+                        noise           = noise * full_envelope[indices]
+                        modifiable_values[indices] += noise
+                        modified[batch_mask] = modifiable_values
+
         elif len(modified.shape) == 2:
-            # Shape: (tokens, embedding_dim)
             num_tokens, embed_dim = modified.shape
+            if protection_mask.shape[0] != num_tokens:
+                protection_mask = torch.zeros(num_tokens, dtype=torch.bool, device=tensor.device)
             
-            # Calculate protected token count based on position
-            protected_count = int(num_tokens * protect_fraction)
+            protection_mask = protection_mask.to(tensor.device)
+            modifiable_mask = ~protection_mask
             
-            if protect_position == "end":
-                start_idx = 0
-                end_idx = num_tokens - protected_count
-            else:
-                start_idx = protected_count
-                end_idx = num_tokens
-            
-            if start_idx < end_idx:
-                # Clone the slice to avoid memory aliasing issues
-                unprotected = modified[start_idx:end_idx, :].clone()
-                
-                total_values = unprotected.numel()
+            if modifiable_mask.any():
+                token_mask = modifiable_mask.unsqueeze(-1).expand(num_tokens, embed_dim)
+                modifiable_values = modified[token_mask]
+                total_values = modifiable_values.numel()
                 num_to_modify = int(total_values * (randomize_percent / 100.0))
                 
                 if num_to_modify > 0:
-                    # Generate noise based on pattern
-                    noise = self._generate_directional_noise(
-                        num_to_modify, pattern, strength, generator, tensor.device
-                    )
-                    
-                    # Generate spatial fade envelope (across tokens)
-                    token_count = unprotected.shape[0]
-                    token_envelope = self._generate_fade_envelope(token_count, fade_curve, tensor.device)
-                    
-                    # Broadcast: (Tokens, 1) -> (Tokens, Dim)
-                    token_envelope = token_envelope.view(token_count, 1)
-                    full_envelope = token_envelope.expand(unprotected.shape).contiguous().flatten()
-                    
-                    # Generate random indices to modify
-                    flat_unprotected = unprotected.flatten()
-                    indices = torch.randperm(total_values, generator=generator)[:num_to_modify]
-                    
-                    # Apply spatial fade modifiers to the noise based on where it lands
-                    spatial_modifiers = full_envelope[indices]
-                    noise = noise * spatial_modifiers
-                    
-                    # Apply noise to selected indices
-                    flat_unprotected[indices] += noise
-                    modified[start_idx:end_idx, :] = flat_unprotected.reshape(unprotected.shape)
+                    if target_tensor is not None:
+                        tgt = self._prepare_vibe_tensor(target_tensor, modified)
+                        target_values = tgt[token_mask]
+
+                        raw_dir = target_values - modifiable_values
+                        num_mod_tokens = modifiable_mask.sum().item()
+                        raw_dir_2d = raw_dir.view(num_mod_tokens, embed_dim)
+                        norms = raw_dir_2d.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+                        unit_dir = (raw_dir_2d / norms).view(-1)
+                        vibe_noise = unit_dir * strength * vibe_blend
+
+                        pattern_weight = 1.0 - vibe_blend
+                        if pattern_weight > 0 and (pattern != "random" or direction_config is not None):
+                            pattern_noise = self._generate_directional_noise(
+                                vibe_noise.shape[0], pattern, strength * pattern_weight,
+                                generator, tensor.device
+                            )
+                            noise = vibe_noise + pattern_noise
+                        else:
+                            noise = vibe_noise
+
+                        # Tweak 2: Krea 2 Band-Aware Noise scaling (2D target vibe path)
+                        if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
+                            band_width = embed_dim // 12
+                            if pattern == "spatial":
+                                band_multipliers = [1.5, 1.5, 1.3, 1.2, 1.0, 0.8, 0.5, 0.3, 0.2, 0.1, 0.1, 0.1]
+                            elif pattern == "texture_lift":
+                                band_multipliers = [0.1, 0.1, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.5, 1.5]
+                            elif pattern == "visceral_grit":
+                                band_multipliers = [0.0, 0.0, 0.1, 1.3, 1.5, 1.5, 1.2, 1.1, 1.5, 1.5, 1.5, 1.5]
+                            else:
+                                band_multipliers = [1.0] * 12
+                            band_tensor = torch.tensor(band_multipliers, dtype=tensor.dtype, device=tensor.device)
+                            band_tensor = band_tensor.repeat_interleave(band_width)
+                            band_scale = band_tensor.repeat(num_mod_tokens)
+                            noise = noise * band_scale
+
+                        token_envelope = self._generate_fade_envelope(num_mod_tokens, fade_curve, tensor.device)
+                        full_envelope  = token_envelope.repeat_interleave(embed_dim)
+                        noise = noise * full_envelope
+
+                        modifiable_values += noise
+                        modified[token_mask] = modifiable_values
+
+                    else:
+                        noise = self._generate_directional_noise(
+                            num_to_modify, pattern, strength, generator, tensor.device
+                        )
+                        num_modifiable_tokens = modifiable_mask.sum().item()
+                        token_envelope  = self._generate_fade_envelope(num_modifiable_tokens, fade_curve, tensor.device)
+                        full_envelope   = token_envelope.repeat_interleave(embed_dim)
+                        indices         = torch.randperm(total_values, generator=generator, device=tensor.device)[:num_to_modify]
+                        
+                        # Tweak 2: Krea 2 Band-Aware Noise scaling (2D random path)
+                        if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
+                            band_width = embed_dim // 12
+                            if pattern == "spatial":
+                                band_multipliers = [1.5, 1.5, 1.3, 1.2, 1.0, 0.8, 0.5, 0.3, 0.2, 0.1, 0.1, 0.1]
+                            elif pattern == "texture_lift":
+                                band_multipliers = [0.1, 0.1, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.5, 1.5]
+                            elif pattern == "visceral_grit":
+                                band_multipliers = [0.0, 0.0, 0.1, 1.3, 1.5, 1.5, 1.2, 1.1, 1.5, 1.5, 1.5, 1.5]
+                            else:
+                                band_multipliers = [1.0] * 12
+                            band_tensor = torch.tensor(band_multipliers, dtype=tensor.dtype, device=tensor.device)
+                            band_tensor = band_tensor.repeat_interleave(band_width)
+                            
+                            feature_indices = indices % embed_dim
+                            band_scale = band_tensor[feature_indices]
+                            noise = noise * band_scale
+
+                        noise           = noise * full_envelope[indices]
+                        modifiable_values[indices] += noise
+                        modified[token_mask] = modifiable_values
         
         return modified
     
     def _generate_fade_envelope(self, num_values, fade_curve, device):
-        """
-        Generate a fade envelope to spatially modulate noise intensity.
-        
-        Args:
-            num_values: Number of envelope values to generate
-            fade_curve: Type of fade curve to use
-            device: Target device for tensor
-        
-        Returns:
-            Tensor of multipliers (0-1) that modulate noise intensity
-        """
-        # Create normalized position (0 to 1)
         t = torch.linspace(0, 1, num_values, device=device)
-        
         if fade_curve == "Instant":
-            # No fade - full strength everywhere
             return torch.ones(num_values, device=device)
-        
         elif fade_curve == "Linear":
-            # Linear fade from 1 to 0
             return 1.0 - t
-        
         elif fade_curve == "Ease-Out":
-            # Fast start, slow fade (quadratic)
             return 1.0 - t * t
-        
         elif fade_curve == "Ease-In":
-            # Slow start, fast fade
             return (1.0 - t) ** 2
-        
         elif fade_curve == "Ease-In-Out":
-            # Smooth both ends (cubic)
-            return torch.where(
-                t < 0.5,
-                1.0 - 2 * t * t,
-                2 * (1.0 - t) ** 2
-            )
-        
+            return torch.where(t < 0.5, 1.0 - 2 * t * t, 2 * (1.0 - t) ** 2)
         elif fade_curve == "Smooth Step":
-            # Ken Perlin's smoothstep
-            # smoothstep(t) = 3t² - 2t³
             smooth = 3 * t * t - 2 * t * t * t
             return 1.0 - smooth
-        
         elif fade_curve == "Burst":
-            # Aggressive initial, quick drop
-            # exp(-4t) gives sharp decay
             return torch.exp(-4 * t)
-        
         else:
-            # Default to instant (no fade)
             return torch.ones(num_values, device=device)
     
     def _generate_directional_noise(self, num_values, pattern, strength, generator, device):
-        """
-        Generate noise with a specific directional pattern.
-        
-        Args:
-            num_values: Number of noise values to generate
-            pattern: The noise pattern type
-            strength: Base strength multiplier
-            generator: Torch random generator
-            device: Target device for tensor
-        
-        Returns:
-            Tensor of noise values with directional bias
-        """
         if pattern == "random":
-            # Pure random Gaussian noise (default behavior)
             return torch.randn(num_values, device=device, generator=generator) * strength
-        
         elif pattern == "scatter":
-            # Chaos: High variance, scattered noise
             base_noise = torch.randn(num_values, device=device, generator=generator)
-            # Amplify outliers
             return (base_noise * torch.abs(base_noise)) * strength
-        
         elif pattern == "compress":
-            # Order: Low variance, compressed noise
             base_noise = torch.randn(num_values, device=device, generator=generator)
-            # Compress to smaller range
             return torch.tanh(base_noise) * strength * 0.5
-        
         elif pattern == "wave":
-            # Abstract: Sinusoidal wave pattern
             indices = torch.arange(num_values, device=device, dtype=torch.float32)
             wave = torch.sin(indices * 0.1) * strength
-            # Add small random variation
             wave += torch.randn(num_values, device=device, generator=generator) * strength * 0.3
             return wave
-        
         elif pattern == "sharpen":
-            # Realistic 2.0 – High-Fidelity Enhancement
-            # Enhances realism by mixing Gaussian base noise with high-frequency detail,
-            # contrast expansion, and centroid-stabilised clarity.
-            
-            # Base Gaussian noise (primary variation source)
             base = torch.randn(num_values, device=device, generator=generator)
-            
-            # High-frequency micro-detail noise (eyes, pores, edges)
             detail = torch.randn(num_values, device=device, generator=generator) * 0.35
-            
-            # Contrast expansion curve: pushes values outward
-            # x -> x * |x|^0.5 introduces subtle photographic contrast
             contrast = base * torch.pow(torch.abs(base) + 1e-6, 0.5)
-            
-            # Weighted combination (carefully tuned to avoid instability)
             combined = (base * 0.55) + (detail * 0.30) + (contrast * 0.85)
-            
-            # Normalise variance for stability and consistency
             combined = combined / (combined.std() + 1e-6)
-            
-            # Apply strength multiplier
             return combined * strength
-        
         elif pattern == "positive":
-            # Vibrant: Bias toward positive values
             base_noise = torch.randn(num_values, device=device, generator=generator)
             return (torch.abs(base_noise) * 0.7 + base_noise * 0.3) * strength
-        
         elif pattern == "negative":
-            # Moody: Bias toward negative values
             base_noise = torch.randn(num_values, device=device, generator=generator)
             return (-torch.abs(base_noise) * 0.7 + base_noise * 0.3) * strength
-        
         elif pattern == "smooth":
-            # Dreamy: Smoothed, soft noise
             base_noise = torch.randn(num_values, device=device, generator=generator)
-            # Apply smoothing by averaging with neighbors (simulated)
             smoothed = base_noise.clone()
             if num_values > 2:
                 smoothed[1:-1] = (base_noise[:-2] + base_noise[1:-1] + base_noise[2:]) / 3
             return smoothed * strength
-        
         elif pattern == "spatial":
-            # Dynamic Pose: Block-based noise to encourage different poses/actions
-            # Apply noise in chunks to affect structural elements
             base_noise = torch.randn(num_values, device=device, generator=generator)
-            chunk_size = max(1, num_values // 16)  # 16 structural blocks
+            chunk_size = max(1, num_values // 16)
             spatial_noise = base_noise.clone()
             for i in range(0, num_values, chunk_size):
                 end = min(i + chunk_size, num_values)
-                # Apply random offset to each chunk
                 chunk_offset = torch.randn(1, device=device, generator=generator).item()
                 spatial_noise[i:end] += chunk_offset * 0.5
             return spatial_noise * strength
-        
         elif pattern == "gradient":
-            # Composition: Linear gradient noise to affect layout/framing
-            # Creates directional bias that can shift composition
             indices = torch.arange(num_values, device=device, dtype=torch.float32)
-            # Normalize to 0-1 range
             normalized = indices / max(1, num_values - 1)
-            # Create gradient with random direction
             direction = torch.randn(1, device=device, generator=generator).item()
             gradient = (normalized - 0.5) * direction * 2
-            # Add small random variation
             gradient += torch.randn(num_values, device=device, generator=generator) * 0.3
             return gradient * strength
-        
         elif pattern == "diversity":
-            # Diversity Shift: Expand feature space by sampling uniform noise.
-            # Gaussian noise clusters around 0 (average features), while uniform noise
-            # gives equal probability to extreme values, increasing overall variety.
-            # This helps counter dataset "average-face" bias without targeting any ethnicity.
-
-            # Generate uniform noise in range [-1, 1]
             base_noise = (torch.rand(num_values, device=device, generator=generator) * 2.0) - 1.0
-
-            # Apply strength multiplier
             return base_noise * strength
-
         elif pattern == "facevar":
-            # Face-Variance Expansion:
-            # Expands identity space by pushing noise along multiple
-            # variance-curvature directions instead of a single axis.
-            #
-            # Mechanism:
-            # 1. Generate base Gaussian noise (normal seed behaviour)
-            # 2. Generate a secondary high-frequency signal for micro-feature jitter
-            # 3. Apply a curvature transform (non-linear mapping)
-            # 4. Normalise to preserve stability
-            #
-            # Result:
-            # Much wider identity variation, more diverse facial structures,
-            # reduced repetition, and stronger deviation from "average face".
-
-            # Base Gaussian noise
             base = torch.randn(num_values, device=device, generator=generator)
-
-            # High-frequency jitter (hairline, eyes, mouth shape micro-variance)
             jitter = torch.randn(num_values, device=device, generator=generator) * 0.35
-
-            # Curvature transform (pushes values outward non-linearly)
             curved = torch.sign(base) * torch.pow(torch.abs(base), 1.4)
-
-            # Combine components
             combined = (base * 0.55) + (jitter * 0.25) + (curved * 0.85)
-
-            # Normalise variance to avoid runaway values
             combined = combined / (combined.std() + 1e-6)
-
-            # Apply user-configured strength
             return combined * strength
-        
+        elif pattern == "visceral_grit":
+            base = torch.randn(num_values, device=device, generator=generator)
+            spikes = torch.pow(base, 3.0) * 0.7
+            raw = torch.randn(num_values + 1, device=device, generator=generator)
+            high_freq = (raw[1:] - raw[:-1]) / 1.414 * 0.5
+            combined = spikes + high_freq
+            return combined * strength
         elif pattern == "semantic_drift":
-            # Semantic Drift (Centroid-Safe)
-            # Small global vector offset, Zero variance increase
-            # Excellent for concept variation without chaos
-            # Implementation: Constant small offset + zero-mean jitter
-            
-            # 1. Very small random constant shift (Global)
             shift = torch.randn(1, device=device, generator=generator).item() * 0.15
-            
-            # 2. Extremely low variance noise (just to keep it alive)
             jitter = torch.randn(num_values, device=device, generator=generator) * 0.05
-            
-            # 3. Combine: mostly shift, tiny jitter
             return (torch.full((num_values,), shift, device=device) + jitter) * strength
-
         elif pattern == "structural_lock":
-            # Structural Lock
-            # Noise only on non-protected tokens (handled by mask),
-            # Strength decays sharply after 20%
-            # Perfect for consistency runs
-            
-            # Generate sorted-like distribution: Strong start -> Sharp decay
             t = torch.linspace(0, 1, num_values, device=device)
-            
-            # Decay curve: 1.0 at t=0, dropping fast after t=0.2
-            # Use a sigmoid-like or exponential drop
-            decay = torch.where(
-                t < 0.2,
-                torch.ones_like(t),  # Strong for first 20%
-                torch.exp(-5.0 * (t - 0.2))  # Decay after
-            )
-            
-            # Apply to random noise
+            decay = torch.where(t < 0.2, torch.ones_like(t), torch.exp(-5.0 * (t - 0.2)))
             base = torch.randn(num_values, device=device, generator=generator)
             return base * decay * strength
-
         elif pattern == "cinematic_framing":
-            # Cinematic Framing
-            # Vertical gradient + centre bias
-            # Encourages medium / wide shots
-            
-            # 1. Vertical Gradient (Linear ramp)
             t = torch.linspace(-1, 1, num_values, device=device)
-            gradient = t  # -1 to 1
-            
-            # 2. Centre Bias (Gaussian bell curve at 0)
+            gradient = t
             center_bias = torch.exp(-2.0 * t**2)
-            
-            # 3. Combine: Gradient defines structure, Center bias focuses it
             combined = (gradient * 0.6) + (center_bias * 0.4)
-            
-            # Add stochastic texture
             combined += torch.randn(num_values, device=device, generator=generator) * 0.2
             return combined * strength
-
         elif pattern == "identity_stretch":
-            # Identity Stretch
-            # Applies curvature only on mid-range values
-            # Expands facial diversity without distortion
-            
             base = torch.randn(num_values, device=device, generator=generator)
-            
-            # Identify mid-range (e.g., 0.5 to 1.5 sigma)
             abs_base = torch.abs(base)
             mid_mask = (abs_base > 0.5) & (abs_base < 1.5)
-            
-            # Apply curvature: Expand these values outward
-            # x -> x + sign(x) * curve
             curvature = torch.sign(base) * torch.pow(abs_base - 0.5, 2) * 0.5
-            
-            # Apply only to mid-range
             result = base.clone()
             result[mid_mask] += curvature[mid_mask]
-            
             return result * strength
-
         elif pattern == "texture_lift":
-            # Texture Lift
-            # High-frequency residual noise only
-            # No centroid shift
-            # Ideal for skin, fabric, hair
-            
-            # Generate slightly larger noise buffer
             raw = torch.randn(num_values + 1, device=device, generator=generator)
-            
-            # Calculate High-Frequency Residual (Difference)
-            # This naturally removes low-frequency trends (Centroid safe)
             high_freq = raw[1:] - raw[:-1]
-            
-            # Normalize to maintain unit variance expectation
             high_freq = high_freq / 1.414
-            
             return high_freq * strength
-
+        elif pattern == "pink":
+            white = torch.randn(num_values, device=device, generator=generator)
+            fft = torch.fft.rfft(white)
+            freqs = torch.arange(len(fft), device=device, dtype=torch.float32)
+            freqs[0] = 1.0
+            scale = 1.0 / torch.sqrt(freqs)
+            scale[0] = 0.0
+            pink = torch.fft.irfft(fft * scale, n=num_values)
+            pink = pink / (pink.std() + 1e-6)
+            return pink * strength
+        elif pattern == "landscape_depth":
+            indices = torch.arange(num_values, device=device, dtype=torch.float32)
+            normalized = indices / max(1, num_values - 1)
+            depth_curve = torch.log(normalized + 0.1) 
+            depth_curve = (depth_curve - depth_curve.mean()) / (depth_curve.std() + 1e-6)
+            return depth_curve * strength
+        elif pattern == "group_diversity":
+            base = torch.randn(num_values, device=device, generator=generator)
+            selector = torch.randint(0, 3, (num_values,), device=device, generator=generator)
+            shifts = torch.tensor([0.0, -1.5, 1.5], device=device)[selector]
+            return (base + shifts) * strength * 0.7
+        elif pattern == "expression":
+            base = torch.randn(num_values, device=device, generator=generator)
+            spikes = torch.pow(base, 3.0)
+            spikes = spikes / (spikes.std() + 1e-6)
+            return spikes * strength
+        elif pattern == "motion_blur":
+            white_noise = torch.randn(num_values, device=device, generator=generator)
+            if num_values > 4:
+                blurred = torch.zeros_like(white_noise)
+                for k in range(-2, 3):
+                    blurred += torch.roll(white_noise, k, dims=0)
+                blurred /= 5.0
+                blurred = blurred / (blurred.std() + 1e-6)
+                return blurred * strength
+            else:
+                 return white_noise * strength
+        elif pattern == "microscopic":
+            uniform = (torch.rand(num_values, device=device, generator=generator) * 2.0) - 1.0
+            jitter = torch.randn(num_values, device=device, generator=generator) * 0.5
+            combined = uniform + jitter
+            return combined * strength
+        elif pattern == "cosmic":
+            base = torch.zeros(num_values, device=device)
+            w = 1.0
+            total_w = 0.0
+            for _ in range(3):
+                octave_noise = torch.randn(num_values, device=device, generator=generator)
+                base += octave_noise * w
+                total_w += w
+                w *= 0.6
+            base /= total_w
+            base = torch.sinh(base) 
+            return base * strength
+        elif pattern == "anatomical_coherence":
+            base_noise = torch.randn(num_values, device=device, generator=generator)
+            if num_values > 8:
+                smoothed = base_noise.clone()
+                for _ in range(2):
+                    if num_values > 2:
+                        smoothed_pass = torch.zeros_like(smoothed)
+                        for i in range(num_values):
+                            start = max(0, i - 1)
+                            end = min(num_values, i + 2)
+                            smoothed_pass[i] = smoothed[start:end].mean()
+                        smoothed = smoothed_pass
+            else:
+                smoothed = base_noise
+            compressed = torch.tanh(smoothed * 0.8)
+            structural_bias = torch.randn(1, device=device, generator=generator).item() * 0.05
+            result = compressed + structural_bias
+            result = result / (result.std() + 1e-6)
+            return result * strength
         else:
-            # Fallback to random
             return torch.randn(num_values, device=device, generator=generator) * strength
 
 
