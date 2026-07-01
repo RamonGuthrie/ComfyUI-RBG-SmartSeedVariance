@@ -22,9 +22,9 @@ Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited
 
 - **Model-Specific Optimization:** Automatic adjustment for your architecture:
 
-  - **Z-Image Turbo**, **Qwen-Image**, **Flux (Dev/Schnell)**, **Chroma HD**, **SDXL** and more!
+  - **Krea2**, **Z-Image Turbo**, **Ernie-Image**, **Qwen-Image**, **Flux (Dev/Schnell)**, **Wan**, **Chroma HD**, **SDXL** and more!
 
-- **11 Direction Shift Patterns:** Apply structured artistic biases instead of pure random noise.
+- **25 Direction Shift Patterns:** Apply structured artistic biases instead of pure random noise.
 - **7 Spatial Fade Curves:** Control how noise fades across the embedding space.
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
