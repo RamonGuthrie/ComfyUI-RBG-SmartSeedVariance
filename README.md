@@ -104,4 +104,16 @@ Contributions are always welcome! If you have any suggestions, improvements, or 
 
 ## License 📜
 
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)** — see the [LICENSE](LICENSE) file for the full text.
+ 
+**What this means in practice:**
+- ✅ You can use, study, modify, and redistribute this code — including for commercial ComfyUI workflows.
+- ✅ You can fork it and build on it.
+- ⚠️ If you distribute a **modified version**, you must release your changes under GPL-3.0 too, and make the source available to whoever you distribute it to.
+- ⚠️ You must keep the copyright notice and this license intact, and clearly mark what you changed.
+- ❌ You cannot fold this code into a closed-source or proprietary node pack.
+This matches the license of ComfyUI itself, so it stays fully compatible with the ecosystem this suite is built for.
+ 
+> Prior to [DATE], this repository was released under the MIT License. Code distributed under the old MIT license terms before that date remains available under MIT for anyone who already forked/cloned it then; all new releases and changes are GPL-3.0.
+
 This project is licensed under the MIT License.
