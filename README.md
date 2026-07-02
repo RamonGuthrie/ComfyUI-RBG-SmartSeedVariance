@@ -114,6 +114,6 @@ This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**
 - ❌ You cannot fold this code into a closed-source or proprietary node pack.
 This matches the license of ComfyUI itself, so it stays fully compatible with the ecosystem this suite is built for.
  
-> Prior to [DATE], this repository was released under the MIT License. Code distributed under the old MIT license terms before that date remains available under MIT for anyone who already forked/cloned it then; all new releases and changes are GPL-3.0.
+> Prior to [12/11/2025], this repository was released under the MIT License. Code distributed under the old MIT license terms before that date remains available under MIT for anyone who already forked/cloned it then; all new releases and changes are GPL-3.0.
 
 This project is licensed under the MIT License.
