@@ -4,8 +4,7 @@
 
 ## Advanced Seed Diversity Enhancement for ComfyUI ✨
 
-Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited seed variance** — changing the seed produces only subtle variations or nearly identical outputs. The **RBG Smart Seed Variance** node solves this by intelligently injecting controlled noise into text embeddings during generation, creating meaningful diversity while preserving your prompt intention.
-
+Some generative models (like Krea 2, Z-Image Turbo and Qwen-Image) suffer from **limited seed variance & diversity bias**, changing the seed (especially in single-step or Turbo workflows) often produces nearly identical compositions or subtle variations. Conversely, highly sensitive multi-encoder models (like Flux or Wan 2.2) can easily collapse or lose prompt alignment when raw noise is injected. The **RBG Smart Seed Variance** node solves this by injecting targeted, mathematically structured noise directly into text embeddings during early generation steps. It creates meaningful diversity, styling variation, and composition shifting while preserving your core prompt intention.
 ---
 <img width="3614" height="1600" alt="Screenshot 2025-12-09 140138" src="https://github.com/user-attachments/assets/272a0bb6-d94e-400b-9be0-40df36dc7941" />
 
@@ -22,7 +21,7 @@ Some generative models (like Z-Image Turbo and Qwen-Image) suffer from **limited
 
 - **Model-Specific Optimization:** Automatic adjustment for your architecture:
 
-  - **Krea2**, **Z-Image Turbo**, **Ernie-Image**, **Qwen-Image**, **Flux (Dev/Schnell)**, **Wan**, **Chroma HD**, **SDXL** and more!
+  - **Krea 2**, **Z-Image Turbo**, **Ernie-Image**, **Qwen-Image**, **Flux (Dev/Schnell)**, **Wan**, **Chroma HD**, **SDXL** and more!
 
 - **25 Direction Shift Patterns:** Apply structured artistic biases instead of pure random noise.
 - **7 Spatial Fade Curves:** Control how noise fades across the embedding space.
