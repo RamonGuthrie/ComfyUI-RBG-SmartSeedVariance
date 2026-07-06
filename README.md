@@ -4,7 +4,8 @@
 
 ## Advanced Seed Diversity Enhancement for ComfyUI ✨
 
-Some generative models (like Krea 2, Z-Image Turbo and Qwen-Image) suffer from **limited seed variance & diversity bias** , changing the seed (especially in single-step or Turbo workflows) often produces nearly identical compositions or subtle variations. Conversely, highly sensitive multi-encoder models (like Flux or Wan 2.2) can easily collapse or lose prompt alignment when raw noise is injected. The **RBG Smart Seed Variance** node solves this by injecting targeted, mathematically structured noise directly into text embeddings during early generation steps. It creates meaningful diversity, styling variation, and composition shifting while preserving your core prompt intention.
+Some generative models (like Krea 2, Z-Image Turbo and Qwen-Image) suffer from **limited seed variance & diversity bias** — changing the seed (especially in single-step or Turbo workflows) often produces nearly identical compositions or subtle variations. Conversely, highly sensitive multi-encoder models (like Flux or Wan 2.2) can easily collapse or lose prompt alignment when raw noise is injected.
+The **RBG Smart Seed Variance** node solves this by injecting targeted, mathematically structured noise directly into text embeddings during early generation steps. It creates meaningful diversity, styling variation, and composition shifting while preserving your core prompt intention.
 ---
 <img width="3614" height="1600" alt="Screenshot 2025-12-09 140138" src="https://github.com/user-attachments/assets/272a0bb6-d94e-400b-9be0-40df36dc7941" />
 
