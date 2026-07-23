@@ -51,11 +51,12 @@ class RBG_Smart_Seed_Variance:
     # Model-specific adjustments: (strength_multiplier, randomize_multiplier)
     MODEL_ADJUSTMENTS = {
         "⚡ Z-Image Turbo": (1.0, 1.0),      # Baseline - well tested with strength 15-30
-        "📸 Krea2 (SingleStream)": (1.0, 0.95), # Custom preset added for Krea2 models
+        "📸 Krea2 (SingleStream)": (1.2, 1.1),
         "🖼️ Qwen-Image": (1.0, 0.9),         # Similar architecture to Z-Image
         "🔮 Flux (Dev/Schnell)": (0.5, 0.8), # Dual encoder (CLIP + T5) - more sensitive
         "🎨 Chroma HD": (0.05, 0.5),         # Very sensitive - needs strength < 1
-        "🧧 ERNIE-Image": (0.08, 0.45),      # Very sensitive - collapses past Creative. Trained on Baidu corpus.
+        "🧧 ERNIE-Image": (0.08, 0.45),      # Very sensitive - collapses past Creative.
+        "🔮 Ideogram 4.0": (0.4, 0.7),       # Qwen3-VL text encoder - high sensitivity, prone to noise-induced safety triggers
         "🖌️ SDXL": (0.6, 0.8),               # Dual CLIP encoder - moderate sensitivity
         "🎬 Wan2.2": (0.8, 0.8),             # Video model - conservative
         "⚙️ Other": (0.8, 0.8),              # Conservative default
@@ -86,27 +87,29 @@ class RBG_Smart_Seed_Variance:
         "📐 Order": ("compress", 0.8),      # Reduce variance, more consistent
         "🎨 Abstract": ("wave", 1.0),       # Artistic, painterly direction
         "📸 Realistic": ("sharpen", 0.9),   # Push toward photorealism
-        "🌈 Vibrant": ("positive", 1.1),    # More colorful/saturated direction
         "🌑 Moody": ("negative", 1.0),      # Darker, moodier direction
         "💭 Dreamy": ("smooth", 1.1),       # Soft, ethereal direction
-        "🎭 Dynamic Pose": ("spatial", 1.2),  # Varied poses/actions. Block-based noise.
+        "🎭 Dynamic Pose": ("spatial", 1.2),  # Varied poses/actions. Best for high-res ERNIE-Image.
         "🖼️ Composition": ("gradient", 1.0),  # Different layouts/framing
-        "🌎 Diversity": ("diversity", 1.15),  # Simple uniform noise
-        "🧬 Face-Variance Expansion": ("facevar", 1.25),  # Advanced curvature noise
+        "🛡️ Latent Noise Guard (Ideogram 4)": ("latent_noise_guard", 0.65), # Outlier smoothing + centroid stabilization
         "🗿 Visceral Expression & Grit (Krea2)": ("visceral_grit", 1.2), # Custom engineered Krea2 emotional & texture lift
+        "🤪 Facial Dynamics & Asymmetry (Krea2)": ("wild_facial_asymmetry", 1.50), # Tanh-smoothed asymmetric facial expression
+        "🎭 Expression Variance": ("expression", 1.2), # Facial expression focus
+        "🔬 Microscopic": ("microscopic", 1.3), # Ultra-high-freq detail
+        "👥 Group Diversity": ("group_diversity", 1.25), # Multi-modal noise
+        "🧬 Face-Variance Expansion": ("facevar", 1.25),  # Advanced curvature noise
+        "🌌 Cosmic": ("cosmic", 1.2), # Fractal-based noise
+        "🌎 Diversity": ("diversity", 1.15),  # Simple uniform noise
+        "🌈 Vibrant": ("positive", 1.1),    # More colorful/saturated direction
         "🧭 Semantic Drift (Centroid-Safe)": ("semantic_drift", 1.0), # Small constant shift
+        "☠️ Bone Anatomical Coherence": ("anatomical_coherence", 0.6), # Low-frequency smoothing
         "🧱 Structural Lock": ("structural_lock", 1.0), # Decaying noise structure
         "🎞️ Cinematic Framing": ("cinematic_framing", 1.1), # Gradient + center bias
-        "🪶 Texture Lift": ("texture_lift", 1.0), # Mid-range curvature
-        "💡 Studio Portrait": ("spatial", 1.0), # Early-mid structural balance
+        "🧠 Identity Stretch": ("identity_stretch", 1.25), # Mid-range curvature
+        "🪶 Texture Lift": ("texture_lift", 1.0), # High-freq residual only
         "🌸 Natural": ("pink", 1.0), # 1/f noise (Pink Noise)
         "🏞️ Landscape Depth": ("landscape_depth", 1.1), # Depth-based gradient
-        "👥 Group Diversity": ("group_diversity", 1.25), # Multi-modal noise
-        "🎭 Expression Variance": ("expression", 1.2), # Facial expression focus
         "🌊 Motion Blur": ("motion_blur", 1.1), # Directional streak patterns
-        "🔬 Microscopic": ("microscopic", 1.3), # Ultra-high-freq detail
-        "🌌 Cosmic": ("cosmic", 1.2), # Fractal-based noise
-        "☠️ Bone Anatomical Coherence": ("anatomical_coherence", 0.6), # Low-frequency smoothing
     }
     
     # Fade curves for noise application
@@ -607,11 +610,12 @@ class RBG_Smart_Seed_Variance:
             
         # Determine base multipliers for Krea2 to boost expressions/textures
         if pattern == "visceral_grit":
-            # Composition (1-3) neutral; Emotion (4-7) heavily boosted; Detail/Grit (8-12) heavily boosted
-            base_multipliers = [1.0, 1.0, 1.0, 2.2, 2.5, 2.5, 2.2, 1.8, 2.8, 2.5, 3.2, 1.8]
+            base_multipliers = [1.0, 1.0, 1.0, 1.8, 2.2, 2.2, 1.8, 1.4, 2.5, 2.2, 2.8, 1.4]
+        elif pattern == "wild_facial_asymmetry":
+            # Balanced expression & refusal band curve
+            base_multipliers = [1.05, 1.05, 1.10, 1.60, 2.00, 1.80, 2.20, 2.20, 3.20, 2.40, 1.80, 1.10]
         elif pattern == "expression":
-            # Boost facial expression / emotional layers
-            base_multipliers = [1.0, 1.0, 1.0, 2.5, 2.8, 2.8, 2.2, 1.0, 1.0, 1.0, 1.0, 1.0]
+            base_multipliers = [1.0, 1.0, 1.0, 2.0, 2.4, 2.4, 3.2, 1.0, 1.0, 1.0, 1.0, 1.0]
         else:
             return cond_tensor
             
