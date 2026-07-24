@@ -9,13 +9,6 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 
 ---
 <img width="3614" height="1600" alt="Screenshot 2025-12-09 140138" src="https://github.com/user-attachments/assets/272a0bb6-d94e-400b-9be0-40df36dc7941" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00032_" src="https://github.com/user-attachments/assets/8d21ea28-2012-4d7f-a38c-147ebe7dd657" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00023_" src="https://github.com/user-attachments/assets/ce02881b-9470-4c56-b8f2-e0ef7a667819" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00015_" src="https://github.com/user-attachments/assets/4d950d04-34e7-4fb5-afa4-d4c99544c6f0" />
-
-
-
-
 
 ## Feature List 🚀
 
@@ -37,7 +30,9 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
 <img width="880" height="1184" alt="ComfyUI_temp_uuido_00001_" src="https://github.com/user-attachments/assets/07692471-65da-4dc9-a8e7-8b4cfdf60499" />
-
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00032_" src="https://github.com/user-attachments/assets/8d21ea28-2012-4d7f-a38c-147ebe7dd657" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00023_" src="https://github.com/user-attachments/assets/ce02881b-9470-4c56-b8f2-e0ef7a667819" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00015_" src="https://github.com/user-attachments/assets/4d950d04-34e7-4fb5-afa4-d4c99544c6f0" />
 ---
 <img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
 
