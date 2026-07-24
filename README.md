@@ -56,6 +56,9 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **🖱️ Interactive Token Inspector** — click individual tokens directly on a live protection-mask visualization instead of typing ranges by hand.
 
 <video controls src="doc/Recording 2026-07-01 125908.mp4" title="Title"></video>
+https://github.com/user-attachments/assets/5d8d4aec-7e52-4e0a-86b9-a6779f571faa
+
+
 ---
 
 ## 📥 Installation
