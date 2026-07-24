@@ -52,8 +52,11 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **🤪 Facial Dynamics & Asymmetry (Krea2)** — a new direction shift that boosts micro facial expressions on facial-descriptive prompts.
 - **🗿 Visceral Expression & Grit (Krea2)** rebalanced to behave better when stacked with LoRAs at high weight.
 - **⏱️ Variance Schedule (Composition Lock 🔒)** — control how variance intensity changes across the sampling timeline instead of a single flat strength.
+<img width="517" height="341" alt="Screenshot 2026-07-24 132519" src="https://github.com/user-attachments/assets/e9e5a9dc-7103-40ab-86eb-ec1f73b59a71" />
 - **⚙️ Custom & 🎲 Random protection regions**, plus **export/import** of your full widget settings as JSON and a one-click curated-preset **"Bloom"** button.
 - **🖱️ Interactive Token Inspector** — click individual tokens directly on a live protection-mask visualization instead of typing ranges by hand.
+https://github.com/user-attachments/assets/e2ab0738-81e6-4d86-b83f-07490c30e060
+
 
 ---
 
