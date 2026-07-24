@@ -9,6 +9,13 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 
 ---
 <img width="3614" height="1600" alt="Screenshot 2025-12-09 140138" src="https://github.com/user-attachments/assets/272a0bb6-d94e-400b-9be0-40df36dc7941" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00032_" src="https://github.com/user-attachments/assets/8d21ea28-2012-4d7f-a38c-147ebe7dd657" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00023_" src="https://github.com/user-attachments/assets/ce02881b-9470-4c56-b8f2-e0ef7a667819" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00015_" src="https://github.com/user-attachments/assets/4d950d04-34e7-4fb5-afa4-d4c99544c6f0" />
+
+
+
+
 
 ## Feature List 🚀
 
