@@ -55,13 +55,7 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **⚙️ Custom & 🎲 Random protection regions**, plus **export/import** of your full widget settings as JSON and a one-click curated-preset **"Bloom"** button.
 - **🖱️ Interactive Token Inspector** — click individual tokens directly on a live protection-mask visualization instead of typing ranges by hand.
 
-
-
 https://github.com/user-attachments/assets/84d09d53-187f-4410-a86f-7b1f53da9c89
-
-
-https://github.com/user-attachments/assets/5d8d4aec-7e52-4e0a-86b9-a6779f571faa
-
 
 ---
 
