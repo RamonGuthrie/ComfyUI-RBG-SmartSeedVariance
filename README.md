@@ -25,7 +25,7 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 
   - **Krea 2**, **Z-Image Turbo**, **Ernie-Image**, **Qwen-Image**, **Flux (Dev/Schnell)**, **Wan**, **Chroma HD**, **SDXL** and more!
 
-- **25 Direction Shift Patterns:** Apply structured artistic biases instead of pure random noise.
+- **25+ Direction Shift Patterns:** Apply structured artistic biases instead of pure random noise.
 - **7 Spatial Fade Curves:** Control how noise fades across the embedding space.
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
