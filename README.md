@@ -35,25 +35,18 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 <img width="3612" height="1508" alt="Screenshot 2025-12-09 151729" src="https://github.com/user-attachments/assets/7c2d5b50-2d75-4d79-ab0d-802a62cb4e26" />
 
 ---
-### 🖼️ Output Comparison Grid
-
-> _Same Prompt & Seed — Comparing Standard KSampler vs. Smart Seed Variance across presets._
-
-|                                               **Standard Seed (No Variance)**                                                |                                                   **Balanced Preset**                                                   |                                                   **Creative Preset**                                                   |                                                   **Bold Preset**                                                   |
-| :--------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------: |
-| <img src="https://github.com/user-attachments/assets/00fe795f-f8ec-496e-9a38-51ce132faf1d" width="220" alt="Original Seed"/> | <img src="https://github.com/user-attachments/assets/295c7e3e-e768-48d2-9893-b5e384490dd0" width="220" alt="Balanced"/> | <img src="https://github.com/user-attachments/assets/1226b481-ab7c-4fe2-8829-e0595b1ab71f" width="220" alt="Creative"/> | <img src="https://github.com/user-attachments/assets/a2f3fbe1-91c8-4b8d-ae05-2336b26b598f" width="220" alt="Bold"/> |
-|                                                   _Identical pose & frame_                                                   |                                            _Subtle lighting & detail shifts_                                            |                                             _New angle & background shift_                                             |                                           _Complete structural overhaul_                                            |
-
----
-
 # 🆕 What's New
-- **💾 Preset Export & Import System:** Easily save, export, and load custom variance configs as JSON files to share killer settings with the community.
-- **Ideogram 4.0 support** — a dedicated model preset tuned for Ideogram 4's Qwen3-VL text encoder, paired with a new **🛡️ Latent Noise Guard** direction shift (outlier smoothing + centroid stabilization) to keep noise from tripping the model's built-in safety checks.
-- **🤪 Facial Dynamics & Asymmetry (Krea2)** — a new direction shift that boosts micro facial expressions on facial-descriptive prompts.
-- **🗿 Visceral Expression & Grit (Krea2)** rebalanced to behave better when stacked with LoRAs at high weight.
-- **⏱️ Variance Schedule (Composition Lock 🔒)** — control how variance intensity changes across the sampling timeline instead of a single flat strength.
-- **⚙️ Custom & 🎲 Random protection regions**, plus **export/import** of your full widget settings as JSON and a one-click curated-preset **"Bloom"** button.
-- **🖱️ Interactive Token Inspector** — click individual tokens directly on a live protection-mask visualization instead of typing ranges by hand.
+
+- **Ideogram 4.0 support** — a dedicated model preset tuned for Ideogram 4's Qwen3-VL text encoder, paired with a **NEW 🛡️ Latent Noise Guard** direction shift (outlier smoothing + centroid stabilization) to keep noise from tripping the model's built-in safety checks.
+- **NEW 🤪 Facial Dynamics & Asymmetry (Krea2)** — a new direction shift that boosts micro facial expressions on facial-descriptive prompts.
+- **NEW🗿 Visceral Expression & Grit (Krea2)** rebalanced to behave better when stacked with LoRAs at high weight.
+- **⏱️ Variance Schedule (Composition Lock 🔒):** Beyond a flat strength, control how variance evolves across the sampling timeline with 5 modes — `constant`, `decreasing`, `step_cutoff`, `hard_lock`, and `tiered_release` — using `cutoff_step`, `total_steps`, and `cutoff_strength` to map a sampling step to a point on that timeline. Lock composition early while letting fine-detail variance keep going later.
+- **Prompt Token Protection:** Preserve specific parts of your prompt from noise, with five modes:
+  - `First Quarter` / `First Half` / `Last Quarter` / `Last Half` — quick fractional protection
+  - **⚙️ Custom Regions** — type explicit token/range syntax (e.g. `0-5,15-20`)
+  - **🎲 Random Regions** — seeds a procedural protection mask for you
+- **💾 Export / Import Settings:** Save your full widget configuration to a JSON file and reload it later, or share it with the community.
+- **🖱️ Interactive Token Inspector:** A live visualization of the protection mask sits right on the node — click any token to toggle it between protected 🔒 and varied 🎲, hover for a tooltip showing its state, and after a run the bar updates to reflect the actual tokens used (not just a static preview).
 
 https://github.com/user-attachments/assets/84d09d53-187f-4410-a86f-7b1f53da9c89
 
