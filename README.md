@@ -35,6 +35,17 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 <img width="3612" height="1508" alt="Screenshot 2025-12-09 151729" src="https://github.com/user-attachments/assets/7c2d5b50-2d75-4d79-ab0d-802a62cb4e26" />
 
 ---
+### 🖼️ Output Comparison Grid
+
+> _Same Prompt & Seed — Comparing Standard KSampler vs. Smart Seed Variance across presets._
+
+|                                               **Standard Seed (No Variance)**                                                |                                                   **Balanced Preset**                                                   |                                                   **Creative Preset**                                                   |                                                   **Bold Preset**                                                   |
+| :--------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/00fe795f-f8ec-496e-9a38-51ce132faf1d" width="220" alt="Original Seed"/> | <img src="https://github.com/user-attachments/assets/295c7e3e-e768-48d2-9893-b5e384490dd0" width="220" alt="Balanced"/> | <img src="https://github.com/user-attachments/assets/1226b481-ab7c-4fe2-8829-e0595b1ab71f" width="220" alt="Creative"/> | <img src="https://github.com/user-attachments/assets/a2f3fbe1-91c8-4b8d-ae05-2336b26b598f" width="220" alt="Bold"/> |
+|                                                   _Identical pose & frame_                                                   |                                            _Subtle lighting & detail shifts_                                            |                                             _New angle & background shift_                                              |                                           _Complete structural overhaul_                                            |
+
+---
+
 # 🆕 What's New
 
 - **Ideogram 4.0 support** — a dedicated model preset tuned for Ideogram 4's Qwen3-VL text encoder, paired with a **NEW 🛡️ Latent Noise Guard** direction shift (outlier smoothing + centroid stabilization) to keep noise from tripping the model's built-in safety checks.
