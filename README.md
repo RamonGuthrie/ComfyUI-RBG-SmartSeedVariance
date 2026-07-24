@@ -29,10 +29,18 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **7 Spatial Fade Curves:** Control how noise fades across the embedding space.
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
-<img width="880" height="1184" alt="ComfyUI_temp_uuido_00001_" src="https://github.com/user-attachments/assets/07692471-65da-4dc9-a8e7-8b4cfdf60499" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00032_" src="https://github.com/user-attachments/assets/8d21ea28-2012-4d7f-a38c-147ebe7dd657" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00023_" src="https://github.com/user-attachments/assets/ce02881b-9470-4c56-b8f2-e0ef7a667819" />
-<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00015_" src="https://github.com/user-attachments/assets/4d950d04-34e7-4fb5-afa4-d4c99544c6f0" />
+
+---
+
+### 🖼️ Output Comparison Grid
+
+> _Same Prompt & Seed — Comparing Standard KSampler vs. Smart Seed Variance across presets._
+
+|                                               **Standard Seed (No Variance)**                                                |                                                   **Balanced Preset**                                                   |                                                   **Creative Preset**                                                   |                                                   **Bold Preset**                                                   |
+| :--------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------: |
+| <img src="https://github.com/user-attachments/assets/07692471-65da-4dc9-a8e7-8b4cfdf60499" width="220" alt="Original Seed"/> | <img src="https://github.com/user-attachments/assets/8d21ea28-2012-4d7f-a38c-147ebe7dd657" width="220" alt="Balanced"/> | <img src="https://github.com/user-attachments/assets/ce02881b-9470-4c56-b8f2-e0ef7a667819" width="220" alt="Creative"/> | <img src="https://github.com/user-attachments/assets/4d950d04-34e7-4fb5-afa4-d4c99544c6f0" width="220" alt="Bold"/> |
+|                                                   _Identical pose & frame_                                                   |                                            _Subtle lighting & detail shifts_                                            |                                             _New camera angle & background_                                             |                                           _Complete structural overhaul_                                            |
+
 ---
 <img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
 
