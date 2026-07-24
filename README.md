@@ -30,6 +30,9 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
 ---
+<img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
+
+<img width="3612" height="1508" alt="Screenshot 2025-12-09 151729" src="https://github.com/user-attachments/assets/7c2d5b50-2d75-4d79-ab0d-802a62cb4e26" />
 
 ### 🖼️ Output Comparison Grid
 
@@ -41,9 +44,6 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 |                                                   _Identical pose & frame_                                                   |                                            _Subtle lighting & detail shifts_                                            |                                             _New angle & background shift_                                             |                                           _Complete structural overhaul_                                            |
 
 ---
-<img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
-
-<img width="3612" height="1508" alt="Screenshot 2025-12-09 151729" src="https://github.com/user-attachments/assets/7c2d5b50-2d75-4d79-ab0d-802a62cb4e26" />
 
 ## 📥 Installation
 
