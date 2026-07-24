@@ -29,6 +29,7 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **7 Spatial Fade Curves:** Control how noise fades across the embedding space.
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
+<img width="880" height="1184" alt="ComfyUI_temp_uuido_00001_" src="https://github.com/user-attachments/assets/07692471-65da-4dc9-a8e7-8b4cfdf60499" />
 
 ---
 <img width="3626" height="1511" alt="Screenshot 2025-12-09 143429" src="https://github.com/user-attachments/assets/9d330fa1-b7b5-48c4-91ef-853dcf9a2f06" />
