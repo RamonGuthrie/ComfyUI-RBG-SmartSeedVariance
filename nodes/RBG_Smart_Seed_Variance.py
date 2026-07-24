@@ -173,9 +173,9 @@ class RBG_Smart_Seed_Variance:
                     "display": "slider",
                     "tooltip": "Strength of the direction shift effect (0-200%). 100% = default, 0% = disabled, 200% = double strength."
                 }),
-                "variance_schedule": (["constant", "decreasing", "step_cutoff", "hard_lock", "tiered_release"], {
+                "variance_schedule": (["constant", "decreasing", "step_cutoff", "tiered_release", "hard_lock"], {
                     "default": "constant",
-                    "tooltip": "Composition Lock 🔒: Control how variance changes over time. 'constant'=standard, 'decreasing'=fade out, 'step_cutoff'=block switch, 'hard_lock'=zero variance until step, 'tiered_release'=multi-phase unlock."
+                    "tooltip": "Composition Lock 🔒: Control how variance changes over time. 'constant'=standard, 'decreasing'=fade out, 'step_cutoff'=block switch, 'tiered_release'=multi-phase unlock, 'hard_lock'=zero variance until step."
                 }),
                 "cutoff_step": ("INT", {
                     "default": 8,
