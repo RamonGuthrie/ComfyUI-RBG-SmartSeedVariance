@@ -47,7 +47,7 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 ---
 
 # 🆕 What's New
-
+- **💾 Preset Export & Import System:** Easily save, export, and load custom variance configs as JSON files to share killer settings with the community.
 - **Ideogram 4.0 support** — a dedicated model preset tuned for Ideogram 4's Qwen3-VL text encoder, paired with a new **🛡️ Latent Noise Guard** direction shift (outlier smoothing + centroid stabilization) to keep noise from tripping the model's built-in safety checks.
 - **🤪 Facial Dynamics & Asymmetry (Krea2)** — a new direction shift that boosts micro facial expressions on facial-descriptive prompts.
 - **🗿 Visceral Expression & Grit (Krea2)** rebalanced to behave better when stacked with LoRAs at high weight.
