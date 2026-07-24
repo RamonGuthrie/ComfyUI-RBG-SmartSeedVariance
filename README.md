@@ -30,6 +30,12 @@ The **RBG Smart Seed Variance** node solves this by injecting targeted, mathemat
 - **Flexible Noise Injection Timing:** Control when variance is applied.
 - **Prompt Token Protection:** Preserve specific parts of your prompt from noise.
 
+<img width="880" height="1184" alt="ComfyUI_temp_uuido_00001_" src="https://github.com/user-attachments/assets/00fe795f-f8ec-496e-9a38-51ce132faf1d" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00032_" src="https://github.com/user-attachments/assets/295c7e3e-e768-48d2-9893-b5e384490dd0" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00023_" src="https://github.com/user-attachments/assets/1226b481-ab7c-4fe2-8829-e0595b1ab71f" />
+<img width="880" height="1184" alt="ComfyUI_temp_mzthr_00015_" src="https://github.com/user-attachments/assets/a2f3fbe1-91c8-4b8d-ae05-2336b26b598f" />
+
+
 ---
 
 ### 🖼️ Output Comparison Grid
