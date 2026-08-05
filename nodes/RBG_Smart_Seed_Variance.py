@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-RBG Smart Seed Variance 🌱 2.2.1
+RBG Smart Seed Variance 🌱 2.2.2
 A user-friendly ComfyUI node for enhancing seed diversity in Z-Image Turbo and Qwen-Image.
 """
 
@@ -34,7 +34,7 @@ except ImportError:
 class RBG_Smart_Seed_Variance:
     """
     Adds diversity to outputs by injecting noise into text embeddings during early generation steps.
-    Designed for Z-Image Turbo and Qwen-Image which have low seed variance.
+    Applies synchronized noise to both cross-attention tokens and global pooled output vectors.
     """
     
     # Preset configurations: (randomize_percent, strength)
@@ -57,7 +57,7 @@ class RBG_Smart_Seed_Variance:
         "🎨 Chroma HD": (0.05, 0.5),         # Very sensitive - needs strength < 1
         "🧧 ERNIE-Image": (0.08, 0.45),      # Very sensitive - collapses past Creative.
         "🔮 Ideogram 4.0": (0.4, 0.7),       # Qwen3-VL text encoder - high sensitivity, prone to noise-induced safety triggers
-        "🖌️ SDXL": (0.6, 0.8),               # Dual CLIP encoder - moderate sensitivity
+        "🖌️ SDXL": (0.6, 0.7),               # Dual CLIP encoder - moderate sensitivity
         "🎬 Wan2.2": (0.8, 0.8),             # Video model - conservative
         "⚙️ Other": (0.8, 0.8),              # Conservative default
     }
@@ -250,15 +250,13 @@ class RBG_Smart_Seed_Variance:
                 "This module ships with ComfyUI — check your installation."
             )
 
-        # Handle disabled mode
         if variance_preset == "❌ Disabled":
             return {"ui": {"protection_data": []}, "result": (conditioning, torch.zeros((1, 64, 64, 3)))}
         
-        # Get preset values or calculate from fine_tune_variance
         preset_config = self.PRESETS.get(variance_preset)
         if preset_config is None:
-            randomize_percent = (fine_tune_variance / 100.0) * 5.0  # 0-5%
-            strength = (fine_tune_variance / 100.0) * 50.0  # 0-50
+            randomize_percent = (fine_tune_variance / 100.0) * 5.0  
+            strength = (fine_tune_variance / 100.0) * 50.0  
         else:
             randomize_percent, strength = preset_config
         
@@ -267,14 +265,12 @@ class RBG_Smart_Seed_Variance:
         randomize_percent *= randomize_mult
         strength *= strength_mult
         
-        # Get direction shift config and apply user strength
         direction_config = self.DIRECTION_SHIFTS.get(direction_shift, None)
         if direction_config is not None:
             pattern, preset_mult = direction_config
             user_mult = shift_strength / 100.0
             direction_config = (pattern, preset_mult * user_mult)
 
-        # Create noisy conditioning
         noisy_conditioning = []
         protection_masks_for_ui = []
         heatmap_tensor = torch.zeros((1, 64, 64, 3))
@@ -287,7 +283,6 @@ class RBG_Smart_Seed_Variance:
             cond_tensor = cond[0]
             cond_dict = cond[1].copy() if len(cond) > 1 else {}
             
-            # Determine number of tokens from tensor shape
             if len(cond_tensor.shape) == 3:
                 num_tokens = cond_tensor.shape[1]
             elif len(cond_tensor.shape) == 2:
@@ -296,7 +291,6 @@ class RBG_Smart_Seed_Variance:
                 noisy_conditioning.append(cond)
                 continue
             
-            # Generate protection mask based on mode
             if protect_mode == "⚙️ Custom Regions":
                 protection_mask = self._parse_protection_regions(protect_regions, num_tokens)
             elif protect_mode == "🎲 Random Regions":
@@ -304,15 +298,12 @@ class RBG_Smart_Seed_Variance:
             else:
                 protection_mask = self._legacy_protection_to_mask(protect_mode, num_tokens)
             
-            # Match target chunk
             current_target = self._pick_target_chunk(target_vibe, i, cond_tensor)
-
             pattern = direction_config[0] if direction_config is not None else "random"
 
-            # Tweak 4: Apply base conditioning layer rebalancing to boost expression signals in base prompt
             rebalanced_cond_tensor = self._apply_base_rebalance(cond_tensor, pattern, model_type)
 
-            # Apply noise with rebalanced tensor
+            # Perturb Cross-Attention Tensor
             modified_tensor = self._apply_noise(
                 rebalanced_cond_tensor,
                 randomize_percent,
@@ -326,7 +317,13 @@ class RBG_Smart_Seed_Variance:
                 model_type=model_type,
             )
             
-            # Generate Heatmap for first conditioning chunk
+            # Perturb Pooled Output Vector (Crucial for SDXL global composition)
+            if "pooled_output" in cond_dict and isinstance(cond_dict["pooled_output"], torch.Tensor):
+                cond_dict["pooled_output"] = self._apply_noise_to_pooled(
+                    cond_dict["pooled_output"], randomize_percent, strength, direction_config,
+                    seed + i + 777, model_type=model_type
+                )
+
             if i == 0:
                 diff = (modified_tensor - cond_tensor).norm(dim=-1)
                 max_diff = diff.max()
@@ -336,7 +333,6 @@ class RBG_Smart_Seed_Variance:
                 heatmap_row = diff.view(1, 1, viz_width, 1).expand(1, 64, viz_width, 3)
                 heatmap_tensor = torch.nn.functional.interpolate(heatmap_row.permute(0, 3, 1, 2), size=(64, 512), mode='nearest').permute(0, 2, 3, 1)
             
-            # Store protection mask for UI
             if hasattr(protection_mask, 'tolist'):
                 mask_list = (protection_mask.cpu().numpy().tolist()
                              if protection_mask.device.type != 'cpu'
@@ -346,7 +342,6 @@ class RBG_Smart_Seed_Variance:
             else:
                 mask_list = []
 
-            # Serialisable metadata
             cond_dict["rbg_variance_fade_curve"] = fade_curve
             cond_dict["rbg_variance_applied"] = True
             cond_dict["rbg_direction_shift"] = direction_shift
@@ -358,7 +353,7 @@ class RBG_Smart_Seed_Variance:
             protection_masks_for_ui.append(mask_list)
             noisy_conditioning.append((modified_tensor, cond_dict))
         
-        # --- Composition Lock Logic ---
+        # --- Composition Lock Schedules ---
         if variance_schedule != "constant":
             cutoff_percent = min(1.0, max(0.0, cutoff_step / total_steps))
             
@@ -383,7 +378,6 @@ class RBG_Smart_Seed_Variance:
             elif variance_schedule == "decreasing":
                 num_segments = 5
                 new_conditioning = []
-                
                 for i in range(num_segments):
                     seg_start = (i / num_segments) * cutoff_percent
                     seg_end = ((i + 1) / num_segments) * cutoff_percent
@@ -452,7 +446,6 @@ class RBG_Smart_Seed_Variance:
                     )
                 return {"ui": {"protection_data": protection_masks_for_ui}, "result": (new_conditioning, heatmap_tensor)}
 
-        # --- Standard Noise Injection Logic ---
         if noise_injection == "🚫 None" or noise_injection == "All Steps":
             return {"ui": {"protection_data": protection_masks_for_ui}, "result": (noisy_conditioning, heatmap_tensor)}
         
@@ -504,16 +497,21 @@ class RBG_Smart_Seed_Variance:
                 protection_mask = self._legacy_protection_to_mask(protect_mode, num_tokens)
 
             current_target = self._pick_target_chunk(target_vibe, i, cond_tensor)
-
             pattern = direction_config[0] if direction_config is not None else "random"
 
-            # Tweak 4: Apply base conditioning layer rebalancing
             rebalanced_cond_tensor = self._apply_base_rebalance(cond_tensor, pattern, model_type)
 
             modified_tensor = self._apply_noise(
                 rebalanced_cond_tensor, randomize_percent, strength, protection_mask,
                 direction_config, current_target, fade_curve, seed + i, vibe_blend, model_type=model_type
             )
+
+            if "pooled_output" in cond_dict and isinstance(cond_dict["pooled_output"], torch.Tensor):
+                cond_dict["pooled_output"] = self._apply_noise_to_pooled(
+                    cond_dict["pooled_output"], randomize_percent, strength, direction_config,
+                    seed + i + 777, model_type=model_type
+                )
+
             scaled_conditioning.append((modified_tensor, cond_dict))
         return scaled_conditioning
     
@@ -608,11 +606,9 @@ class RBG_Smart_Seed_Variance:
         if embed_dim % 12 != 0:
             return cond_tensor
             
-        # Determine base multipliers for Krea2 to boost expressions/textures
         if pattern == "visceral_grit":
             base_multipliers = [1.0, 1.0, 1.0, 1.8, 2.2, 2.2, 1.8, 1.4, 2.5, 2.2, 2.8, 1.4]
         elif pattern == "wild_facial_asymmetry":
-            # Balanced expression & refusal band curve
             base_multipliers = [1.05, 1.05, 1.10, 1.60, 2.00, 1.80, 2.20, 2.20, 3.20, 2.40, 1.80, 1.10]
         elif pattern == "expression":
             base_multipliers = [1.0, 1.0, 1.0, 2.0, 2.4, 2.4, 3.2, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -621,19 +617,47 @@ class RBG_Smart_Seed_Variance:
             
         band_width = embed_dim // 12
         band_tensor = torch.tensor(base_multipliers, dtype=cond_tensor.dtype, device=cond_tensor.device)
-        band_tensor = band_tensor.repeat_interleave(band_width) # [embed_dim]
+        band_tensor = band_tensor.repeat_interleave(band_width)
         
         return cond_tensor * band_tensor
+
+    def _apply_noise_to_pooled(self, pooled_tensor, randomize_percent, strength, direction_config, seed, model_type="⚙️ Other"):
+        """
+        Apply proportional variance noise to SDXL global pooled_output vector.
+        """
+        if pooled_tensor is None or not isinstance(pooled_tensor, torch.Tensor):
+            return pooled_tensor
+            
+        modified = pooled_tensor.clone()
+        ref_std = torch.std(modified).detach().clamp(min=1e-5)
+        generator = torch.Generator(device=pooled_tensor.device)
+        generator.manual_seed(seed)
+        
+        pattern = direction_config[0] if direction_config is not None else "random"
+        dir_mult = direction_config[1] if direction_config is not None else 1.0
+        
+        num_values = modified.numel()
+        noise = self._generate_directional_noise(num_values, pattern, strength * dir_mult, generator, pooled_tensor.device)
+        noise = noise.view_as(modified)
+        
+        noise_std = torch.std(noise).detach().clamp(min=1e-6)
+        scale_factor = (strength / 35.0) * ref_std
+        scaled_noise = (noise / noise_std) * scale_factor
+        scaled_noise = torch.clamp(scaled_noise, -ref_std * 1.5, ref_std * 1.5)
+        
+        return modified + scaled_noise
 
     def _apply_noise(self, tensor, randomize_percent, strength, protection_mask,
                      direction_config, target_tensor, fade_curve, seed, vibe_blend=0.5, model_type="⚙️ Other"):
         """
-        Apply noise to a fraction of the tensor values, optionally with directional bias and fade curve.
+        Apply noise to cross-attention tokens with scale relative to embedding standard deviation.
         """
         modified = tensor.clone()
         generator = torch.Generator(device=tensor.device)
         generator.manual_seed(seed)
         
+        ref_std = torch.std(modified).detach().clamp(min=1e-5)
+
         if direction_config is not None:
             pattern, dir_multiplier = direction_config
             strength *= dir_multiplier
@@ -676,7 +700,6 @@ class RBG_Smart_Seed_Variance:
                         else:
                             noise = vibe_noise
 
-                        # Tweak 2: Krea 2 Band-Aware Noise scaling (3D target vibe path)
                         if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
                             band_width = embed_dim // 12
                             if pattern == "spatial":
@@ -696,6 +719,10 @@ class RBG_Smart_Seed_Variance:
                         full_envelope = token_envelope.repeat_interleave(embed_dim).repeat(batch_size)
                         noise = noise * full_envelope
 
+                        noise_std = torch.std(noise).detach().clamp(min=1e-6)
+                        noise = (noise / noise_std) * (strength / 35.0) * ref_std
+                        noise = torch.clamp(noise, -ref_std * 1.5, ref_std * 1.5)
+
                         modifiable_values += noise
                         modified[batch_mask] = modifiable_values
 
@@ -708,7 +735,6 @@ class RBG_Smart_Seed_Variance:
                         full_envelope   = token_envelope.repeat_interleave(embed_dim).repeat(batch_size)
                         indices         = torch.randperm(total_values, generator=generator, device=tensor.device)[:num_to_modify]
                         
-                        # Tweak 2: Krea 2 Band-Aware Noise scaling (3D random path)
                         if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
                             band_width = embed_dim // 12
                             if pattern == "spatial":
@@ -726,7 +752,12 @@ class RBG_Smart_Seed_Variance:
                             band_scale = band_tensor[feature_indices]
                             noise = noise * band_scale
 
-                        noise           = noise * full_envelope[indices]
+                        noise = noise * full_envelope[indices]
+
+                        noise_std = torch.std(noise).detach().clamp(min=1e-6)
+                        noise = (noise / noise_std) * (strength / 35.0) * ref_std
+                        noise = torch.clamp(noise, -ref_std * 1.5, ref_std * 1.5)
+
                         modifiable_values[indices] += noise
                         modified[batch_mask] = modifiable_values
 
@@ -766,7 +797,6 @@ class RBG_Smart_Seed_Variance:
                         else:
                             noise = vibe_noise
 
-                        # Tweak 2: Krea 2 Band-Aware Noise scaling (2D target vibe path)
                         if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
                             band_width = embed_dim // 12
                             if pattern == "spatial":
@@ -786,6 +816,10 @@ class RBG_Smart_Seed_Variance:
                         full_envelope  = token_envelope.repeat_interleave(embed_dim)
                         noise = noise * full_envelope
 
+                        noise_std = torch.std(noise).detach().clamp(min=1e-6)
+                        noise = (noise / noise_std) * (strength / 35.0) * ref_std
+                        noise = torch.clamp(noise, -ref_std * 1.5, ref_std * 1.5)
+
                         modifiable_values += noise
                         modified[token_mask] = modifiable_values
 
@@ -798,7 +832,6 @@ class RBG_Smart_Seed_Variance:
                         full_envelope   = token_envelope.repeat_interleave(embed_dim)
                         indices         = torch.randperm(total_values, generator=generator, device=tensor.device)[:num_to_modify]
                         
-                        # Tweak 2: Krea 2 Band-Aware Noise scaling (2D random path)
                         if model_type == "📸 Krea2 (SingleStream)" and embed_dim % 12 == 0:
                             band_width = embed_dim // 12
                             if pattern == "spatial":
@@ -816,7 +849,12 @@ class RBG_Smart_Seed_Variance:
                             band_scale = band_tensor[feature_indices]
                             noise = noise * band_scale
 
-                        noise           = noise * full_envelope[indices]
+                        noise = noise * full_envelope[indices]
+
+                        noise_std = torch.std(noise).detach().clamp(min=1e-6)
+                        noise = (noise / noise_std) * (strength / 35.0) * ref_std
+                        noise = torch.clamp(noise, -ref_std * 1.5, ref_std * 1.5)
+
                         modifiable_values[indices] += noise
                         modified[token_mask] = modifiable_values
         
