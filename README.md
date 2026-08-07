@@ -78,6 +78,29 @@ The node will appear under the **RBG Suite/Advanced** category.
 
 ---
 
+## 📥 Installation — sd-webui-forge-classic (Neo) / A1111
+
+This repository is dual-platform: the same clone also works as a WebUI extension.
+
+1.  Clone this repository into your `extensions` directory:
+    ```bash
+    git clone https://github.com/RamonGuthrie/ComfyUI-RBG-SmartSeedVariance.git
+    ```
+2.  Restart the WebUI. An **RBG Smart Seed Variance 🌱** accordion appears in both txt2img and img2img.
+
+**WebUI-specific notes:**
+
+- Noise is applied to the positive text conditioning on every sampling step through the CFG-denoiser callback, using the same integration structure as sd-forge-sve (per-batch class state + `before_process_batch`/`process_batch` hooks), which is the pattern proven to work on the Neo backend. Step scheduling is exact — the ComfyUI `total_steps` estimate input does not exist here; the real step count is used for `cutoff_step`.
+- When enabled, the console shows `[RBG SSV vX.Y] enabled: ...` at the start of each batch and `[RBG SSV] injecting variance ...` once sampling starts; if variance was enabled but never applied, a warning is printed instead, together with a `[RBG SSV] diagnostic: ...` line showing the real conditioning tensor shape/dtype for troubleshooting.
+- Some text encoders (e.g. Krea2's per-chunk Qwen3VL output) produce a 4-D conditioning tensor `(chunks, chunk_batch, tokens, embed_dim)` instead of the usual 2-D/3-D shape; this is handled automatically by collapsing the leading dims before noise injection and restoring the original shape afterward.
+- **Model type** defaults to 🤖 Auto-Detect and is resolved from the loaded checkpoint (Z-Image Turbo, Krea2, Qwen-Image, Flux, Chroma, ERNIE, SDXL, Wan); you can still override it manually.
+- **Target Vibe** takes an optional prompt (instead of a CONDITIONING input); it is encoded with the current model's text encoder and steers the variance direction, mixed by *Vibe blend*.
+- **Variance seed** `-1` follows the image seed; a fixed value keeps the variance pattern constant while the image seed changes.
+- Enable **Output variance heatmap** to append the token-wise variance strip to the results gallery.
+- All settings are written to the image infotext and restored when you paste the parameters back.
+
+---
+
 ## 💡 Pro Tips
 
 - **Start conservative:** Begin with "Balanced" preset and adjust up/down based on results
