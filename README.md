@@ -1,7 +1,5 @@
 # ComfyUI-RBG-SmartSeedVariance 🌱
 
-<img src="https://img.shields.io/badge/ComfyUI-Compatible-blue?style=for-the-badge" alt="ComfyUI Compatible"><img src="https://img.shields.io/badge/Nodes-1-green?style=for-the-badge" alt="1 Nodes"><img src="https://img.shields.io/badge/Categories-1-orange?style=for-the-badge" alt="1 Category">
-
 ## Advanced Seed Diversity Enhancement for ComfyUI ✨
 
 Some generative models (like Krea 2, Z-Image Turbo and Qwen-Image) suffer from **limited seed variance & diversity bias**, changing the seed (especially in single-step or Turbo workflows) often produces nearly identical compositions or subtle variations. Conversely, highly sensitive multi-encoder models (like Flux or Wan 2.2) can easily collapse or lose prompt alignment when raw noise is injected.
