@@ -1,4 +1,4 @@
-# <ONE LINE NAME OF NODE / MODULE, e.g. "RBG Smart Seed Variance">
+# RBG Smart Seed Variance
 # Copyright (C) 2025  Ramon Guthrie
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
@@ -16,8 +16,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-RBG Smart Seed Variance 🌱 2.2.2
-A user-friendly ComfyUI node for enhancing seed diversity in Z-Image Turbo and Qwen-Image.
+RBG Smart Seed Variance 🌱 2.2.3
+A user-friendly ComfyUI node for enhancing seed diversity in Z-Image Turbo, Qwen-Image, and other diffusion models.
+Includes calibrated Qwen-Image-2.1 presets, directional shifts, and prefix KV-cache safeguards.
 """
 
 import torch
@@ -52,7 +53,8 @@ class RBG_Smart_Seed_Variance:
     MODEL_ADJUSTMENTS = {
         "⚡ Z-Image Turbo": (1.0, 1.0),      # Baseline - well tested with strength 15-30
         "📸 Krea2 (SingleStream)": (1.2, 1.1),
-        "🖼️ Qwen-Image": (1.0, 0.9),         # Similar architecture to Z-Image
+        "🖼️ Qwen-Image-2.1 (7B SingleStream)": (0.45, 0.75), # Qwen3-VL-8B text encoder + 32-layer SingleStream DiT; calibrated for typography & RGBA
+        "🖼️ Qwen-Image (Legacy 20B MMDiT)": (0.8, 0.85),    # First-gen Qwen-Image 20B MMDiT
         "🔮 Flux (Dev/Schnell)": (0.5, 0.8), # Dual encoder (CLIP + T5) - more sensitive
         "🎨 Chroma HD": (0.05, 0.5),         # Very sensitive - needs strength < 1
         "🧧 ERNIE-Image": (0.08, 0.45),      # Very sensitive - collapses past Creative.
@@ -92,6 +94,9 @@ class RBG_Smart_Seed_Variance:
         "🎭 Dynamic Pose": ("spatial", 1.2),  # Varied poses/actions. Best for high-res ERNIE-Image.
         "🖼️ Composition": ("gradient", 1.0),  # Different layouts/framing
         "🛡️ Latent Noise Guard (Ideogram 4)": ("latent_noise_guard", 0.65), # Outlier smoothing + centroid stabilization
+        "🔤 Typography & Alpha Guard (Qwen 2.1)": ("qwen_typo_guard", 0.65), # Preserves subword text fidelity and clean RGBA edges
+        "🎞️ Filmic Contrast & De-Yellow (Qwen 2.1)": ("qwen_filmic_contrast", 0.85), # S-curve polarization & cool centroid offset to break plastic yellow look
+        "🧬 Structural Geometry & Hand Anchor (Qwen 2.1)": ("qwen_structural_anchor", 0.70), # 5-tap token smoothing for hands, straps & joints
         "🗿 Visceral Expression & Grit (Krea2)": ("visceral_grit", 1.2), # Custom engineered Krea2 emotional & texture lift
         "🤪 Facial Dynamics & Asymmetry (Krea2)": ("wild_facial_asymmetry", 1.50), # Tanh-smoothed asymmetric facial expression
         "🎭 Expression Variance": ("expression", 1.2), # Facial expression focus
@@ -244,6 +249,15 @@ class RBG_Smart_Seed_Variance:
         """
         Apply variance noise to conditioning embeddings with step-based control.
         """
+        # Qwen-Image-2.1 Prefix KV-Cache Guard:
+        # Mid-run conditioning switches trigger ComfyUI's upstream Prefix KV-Cache bug (Issue #16511 / #16447)
+        # unless cache is disabled. Auto-stabilize to 'All Steps' and 'constant' to prevent fatal runtime crashes.
+        if model_type == "🖼️ Qwen-Image-2.1 (7B SingleStream)":
+            if noise_injection in ["Beginning Steps", "Ending Steps"]:
+                noise_injection = "All Steps"
+            if variance_schedule != "constant":
+                variance_schedule = "constant"
+
         if not _NODE_HELPERS_AVAILABLE:
             raise RuntimeError(
                 "RBG Smart Seed Variance: 'node_helpers' could not be imported. "
@@ -1029,6 +1043,52 @@ class RBG_Smart_Seed_Variance:
             base /= total_w
             base = torch.sinh(base) 
             return base * strength
+        elif pattern == "latent_noise_guard":
+            white_noise = torch.randn(num_values, device=device, generator=generator)
+            if num_values > 4:
+                smoothed = torch.zeros_like(white_noise)
+                for k in range(-1, 2):
+                    smoothed += torch.roll(white_noise, k, dims=0)
+                smoothed /= 3.0
+            else:
+                smoothed = white_noise
+            compressed = torch.tanh(smoothed * 0.7)
+            return (compressed + 0.05) * strength
+        elif pattern == "qwen_typo_guard":
+            base_noise = torch.randn(num_values, device=device, generator=generator)
+            if num_values > 6:
+                smoothed = base_noise.clone()
+                smoothed[1:-1] = 0.25 * base_noise[:-2] + 0.5 * base_noise[1:-1] + 0.25 * base_noise[2:]
+            else:
+                smoothed = base_noise
+            clamped = torch.tanh(smoothed * 0.75) * 0.95
+            return (clamped / (clamped.std() + 1e-6)) * strength
+        elif pattern == "qwen_filmic_contrast":
+            base = torch.randn(num_values, device=device, generator=generator)
+            s_curve = base * (1.0 + 0.35 * torch.pow(base, 2))
+            s_curve = s_curve / (s_curve.std() + 1e-6)
+            raw = torch.randn(num_values + 1, device=device, generator=generator)
+            micro_grain = (raw[1:] - raw[:-1]) / 1.414 * 0.30
+            cool_shift = -0.04
+            combined = (s_curve * 0.75) + micro_grain + cool_shift
+            clamped = torch.tanh(combined * 0.80) * 1.10
+            return (clamped / (clamped.std() + 1e-6)) * strength
+        elif pattern == "qwen_structural_anchor":
+            base_noise = torch.randn(num_values, device=device, generator=generator)
+            if num_values > 8:
+                smoothed = base_noise.clone()
+                smoothed[2:-2] = (
+                    0.0625 * base_noise[:-4] +
+                    0.2500 * base_noise[1:-3] +
+                    0.3750 * base_noise[2:-2] +
+                    0.2500 * base_noise[3:-1] +
+                    0.0625 * base_noise[4:]
+                )
+                combined = (smoothed * 0.70) + (base_noise * 0.30)
+            else:
+                combined = base_noise
+            compressed = torch.tanh(combined * 0.75)
+            return (compressed / (compressed.std() + 1e-6)) * strength
         elif pattern == "anatomical_coherence":
             base_noise = torch.randn(num_values, device=device, generator=generator)
             if num_values > 8:
